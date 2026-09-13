@@ -1,7 +1,7 @@
 // Copyright (c) 2023 Oleg Kalachev <okalachev@gmail.com>
 // Repository: https://github.com/okalachev/flix
 
-// Partial implementation of Arduino API for simulation
+// 用于模拟的ArduinoAPI的部分实现
 
 #pragma once
 
@@ -191,5 +191,6 @@ unsigned long __micros;
 unsigned long __resetTime = 0;
 
 unsigned long micros() {
-	return __micros + __resetTime + __delayTime; // keep the time monotonic
+	// 使用steady_clock以避免系统时钟变化带来的问题
+	return __micros + __resetTime + __delayTime; // 保持时间单调性
 }
