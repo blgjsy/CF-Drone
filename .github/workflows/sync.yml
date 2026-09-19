@@ -1,0 +1,68 @@
+name: sync-main-pr-to-temp-push
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  TARGET_BRANCH: feature/push-temp
+
+jobs:
+  sync-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Ensure target exists
+        run: |
+          git fetch origin
+          if ! git rev-parse --verify "origin/$TARGET_BRANCH" >/dev/null 2>&1; then
+            git checkout -b "$TARGET_BRANCH"
+            git push origin "$TARGET_BRANCH"
+            git checkout main
+          fi
+
+      # 用临时同步分支试合，避免直接动受保护子分支
+      - name: Build sync branch and test-merge
+        id: test
+        run: |
+          SYNC="sync/main-to-$(echo $TARGET_BRANCH | tr / -)-$(date +%s)"
+          git checkout -b "$SYNC" "origin/$TARGET_BRANCH"
+          set +e
+          git merge origin/main --no-ff --no-edit
+          code=$?
+          if [ "$code" -ne 0 ]; then
+            echo "::error::冲突，放弃开PR，等待人工合并"
+            git merge --abort
+            echo "conflict=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git push origin "$SYNC"
+          echo "sync_branch=$SYNC" >> "$GITHUB_OUTPUT"
+          echo "conflict=false" >> "$GITHUB_OUTPUT"
+
+      - name: Create PR and enable auto-merge
+        if: steps.test.outputs.conflict == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR=$(gh pr list --head "${{ steps.test.outputs.sync_branch }}" --base "$TARGET_BRANCH" --state open --json number --jq '.[0].number')
+          if [ -z "$PR" ]; then
+            gh pr create \
+              --head "${{ steps.test.outputs.sync_branch }}" \
+              --base "$TARGET_BRANCH" \
+              --title "chore: auto-sync main -> $TARGET_BRANCH" \
+              --body "自动同步，无冲突自动合并，有冲突则需要人工处理。"
+          fi
+          PR=$(gh pr list --head "${{ steps.test.outputs.sync_branch }}" --base "$TARGET_BRANCH" --state open --json number --jq '.[0].number')
+          gh pr merge "$PR" --auto --merge
