@@ -8,7 +8,7 @@ permissions:
   pull-requests: write
 
 env:
-  TARGET_BRANCH: feature/temp-push
+  TARGET_BRANCH: feature/push-temp
 
 jobs:
   sync-pr:
