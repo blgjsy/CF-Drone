@@ -11,6 +11,8 @@
 ## 仓库结构
 - 本仓库包含[CF-Drone](https://github.com/kaligemr/CF-Drone/blob/main/CF-Drone)和[flix](https://github.com/kaligemr/CF-Drone/blob/main/flix)和huojianfeikong三个项目文件夹
 - 详细介绍见[CF-Drone/README.md](https://github.com/blgjsy/CF-Drone/blob/main/CF-Drone/README.md)，该文件夹为主要维护的飞控代码。
+不过我们会陆续转移代码到[flix](https://github.com/kaligemr/CF-Drone/blob/main/flix)上，它马上就成为我们主要维护的飞控代码。
+往后的硬件开源将参考https://oshwhub.com/malagis/esp32-mini-plane
 
 ## 版权
 - CF-Drone文件夹fork自[songge8/CF-Drone](https://github.com/songge8/CF-Drone)，本项目遵循GPL v3或更高版本
