@@ -4,7 +4,9 @@
 * 支持6500/9250姿态传感器
 * 完美适配琛光E1系列无人机
 ## 上游信息
-* 嘉立创开源平台工程链接：https://oshwhub.com/songge8/project_qqqyfdkm
+* 嘉立创开源平台工程链接：
+* E1_MINI https://oshwhub.com/songge8/project_qqqyfdkm
+* E1_Nano https://oshwhub.com/songge8/project_fnvbukbz
 * 原B站视频：[45元成本手搓无人机，硬件+源码全开源，照着做就能飞！](https://www.bilibili.com/video/BV18ho4BKEzt)
 
 ## 更新日志
