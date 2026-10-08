@@ -30,7 +30,7 @@ const char* motd =
 "仓库：https://github.com/blgjsy/CF-Drone\n"
 "原始仓库：https://github.com/okalachev/flix\n\n"
 "命令:\n"
-"help - 显示帮助\n"
+"help / motd - 显示帮助\n"
 "p - 显示所有参数\n"
 "p <name> - 显示指定参数。传入参数名\n"
 "p <name> <value> - 设置参数。传入参数名和值\n"
@@ -57,7 +57,7 @@ const char* motd =
 "reset - 重置无人机状态\n"
 "reboot - 重启无人机\n";
 
-// Always redirect Serial to USB on ESP32-S3/ESP32-C3
+// 在ESP32-S3/C3中，串口默认输出到USB
 #if SOC_USB_SERIAL_JTAG_SUPPORTED && ARDUINO_USB_MODE
 #if !ARDUINO_USB_CDC_ON_BOOT
 HWCDC HWCDCSerial;
@@ -69,7 +69,7 @@ HWCDC HWCDCSerial;
 void setupConsole() {
 	Serial.begin(115200);
 #if SOC_USB_SERIAL_JTAG_SUPPORTED
-	Serial.setTxTimeoutMs(0); // never block on usb write
+	Serial.setTxTimeoutMs(0); // 不要阻塞USB写入
 #endif
 }
 
@@ -94,19 +94,19 @@ void pause(float duration) {
 }
 
 void doCommand(String str, bool echo = false) {
-	// parse command
+	// 解析命令
 	String command, arg0, arg1;
 	splitString(str, command, arg0, arg1);
 	if (command.isEmpty()) return;
 
-	// echo command
+	// 显示命令
 	if (echo) {
 		print("> %s\n", str.c_str());
 	}
 
 	command.toLowerCase();
 
-	// execute command
+	// 执行命令
 	if (command == "help" || command == "motd") {
 		print("%s\n", motd);
 	} else if (command == "p" && arg1 == "") {
