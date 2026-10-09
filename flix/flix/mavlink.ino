@@ -1,7 +1,7 @@
 // Copyright (c) 2023 Oleg Kalachev <okalachev@gmail.com>
 // Repository: https://github.com/okalachev/flix
 
-// MAVLink communication
+// MAVLink通信
 
 #include <MAVLink.h>
 #include "util.h"
@@ -17,7 +17,7 @@ Rate telemetryRC(10);
 Rate telemetryMotors(10);
 Rate telemetryIMU(15);
 
-float mavlinkTime = NAN; // time of last received message
+float mavlinkTime = NAN; // 上次收到消息的时间
 String mavlinkPrintBuffer;
 
 void processMavlink() {
@@ -40,7 +40,7 @@ void sendMavlink() {
 		sendMessage(&msg);
 	}
 
-	if (!valid(mavlinkTime)) return; // send only heartbeat until connected
+	if (!valid(mavlinkTime)) return; // 连接建立前只发送心跳包
 
 	if (telemetrySlow) {
 		mavlink_msg_extended_sys_state_pack(mavlinkSysId, MAV_COMP_ID_AUTOPILOT1, &msg,
@@ -60,11 +60,11 @@ void sendMavlink() {
 	if (telemetryAttitude) {
 		const float offset[] = {0, 0, 0, 0};
 		mavlink_msg_attitude_quaternion_pack(mavlinkSysId, MAV_COMP_ID_AUTOPILOT1, &msg,
-			time, attitude.w, attitude.x, -attitude.y, -attitude.z, rates.x, -rates.y, -rates.z, offset); // convert to frd
+			time, attitude.w, attitude.x, -attitude.y, -attitude.z, rates.x, -rates.y, -rates.z, offset); // 转换为FRD坐标系
 		sendMessage(&msg);
 	}
 
-	if (telemetryRC && channels[0]) { // 0 means no RC input
+	if (telemetryRC && channels[0]) { // 0 表示没有遥控器输入
 		mavlink_msg_rc_channels_raw_pack(mavlinkSysId, MAV_COMP_ID_AUTOPILOT1, &msg, controlTime * 1000, 0,
 			channels[0], channels[1], channels[2], channels[3], channels[4], channels[5], channels[6], channels[7], UINT8_MAX);
 		sendMessage(&msg);
@@ -79,7 +79,7 @@ void sendMavlink() {
 
 	if (telemetryIMU) {
 		mavlink_msg_scaled_imu_pack(mavlinkSysId, MAV_COMP_ID_AUTOPILOT1, &msg, time,
-			acc.x / ONE_G * 1000, -acc.y / ONE_G * 1000, -acc.z / ONE_G * 1000, // convert to frd
+			acc.x / ONE_G * 1000, -acc.y / ONE_G * 1000, -acc.z / ONE_G * 1000, // 转换为FRD坐标系
 			gyro.x * 1000, -gyro.y * 1000, -gyro.z * 1000,
 			0, 0, 0, 0);
 		sendMessage(&msg);
@@ -96,7 +96,7 @@ void receiveMavlink() {
 	uint8_t buf[MAVLINK_MAX_PACKET_LEN];
 	int len = receiveWiFi(buf, MAVLINK_MAX_PACKET_LEN);
 
-	// New packet, parse it
+	// 收到新数据包，进行解析
 	mavlink_message_t msg;
 	mavlink_status_t status;
 	for (int i = 0; i < len; i++) {
@@ -113,7 +113,7 @@ void handleMavlink(const void *_msg) {
 	if (msg.msgid == MAVLINK_MSG_ID_MANUAL_CONTROL) {
 		mavlink_manual_control_t m;
 		mavlink_msg_manual_control_decode(&msg, &m);
-		if (m.target && m.target != mavlinkSysId) return; // 0 is broadcast
+		if (m.target && m.target != mavlinkSysId) return; // 0 表示广播
 
 		controlThrottle = m.z / 1000.0f;
 		controlPitch = m.x / 1000.0f;
@@ -142,7 +142,7 @@ void handleMavlink(const void *_msg) {
 		if (m.target_system && m.target_system != mavlinkSysId) return;
 
 		char name[MAVLINK_MSG_PARAM_REQUEST_READ_FIELD_PARAM_ID_LEN + 1];
-		strlcpy(name, m.param_id, sizeof(name)); // param_id might be not null-terminated
+		strlcpy(name, m.param_id, sizeof(name)); // param_id 可能不是以空字符结尾的
 		float value = strlen(name) == 0 ? getParameter(m.param_index) : getParameter(name);
 		if (m.param_index != -1) {
 			memcpy(name, getParameterName(m.param_index), 16);
@@ -159,17 +159,17 @@ void handleMavlink(const void *_msg) {
 		if (m.target_system && m.target_system != mavlinkSysId) return;
 
 		char name[MAVLINK_MSG_PARAM_SET_FIELD_PARAM_ID_LEN + 1];
-		strlcpy(name, m.param_id, sizeof(name)); // param_id might be not null-terminated
+		strlcpy(name, m.param_id, sizeof(name)); // param_id 可能不是以空字符结尾的
 		bool success = setParameter(name, m.param_value);
 		if (!success) return;
-		// send ack
+		// 发送确认
 		mavlink_message_t msg;
 		mavlink_msg_param_value_pack(mavlinkSysId, MAV_COMP_ID_AUTOPILOT1, &msg,
-			m.param_id, getParameter(name), MAV_PARAM_TYPE_REAL32, parametersCount(), 0); // index is unknown
+			m.param_id, getParameter(name), MAV_PARAM_TYPE_REAL32, parametersCount(), 0); // 索引未知
 		sendMessage(&msg);
 	}
 
-	if (msg.msgid == MAVLINK_MSG_ID_MISSION_REQUEST_LIST) { // handle to make qgc happy
+	if (msg.msgid == MAVLINK_MSG_ID_MISSION_REQUEST_LIST) { // 处理该消息以使地面站(QGC)满意
 		mavlink_mission_request_list_t m;
 		mavlink_msg_mission_request_list_decode(&msg, &m);
 		if (m.target_system && m.target_system != mavlinkSysId) return;
@@ -185,7 +185,7 @@ void handleMavlink(const void *_msg) {
 		if (m.target_system && m.target_system != mavlinkSysId) return;
 
 		char data[MAVLINK_MSG_SERIAL_CONTROL_FIELD_DATA_LEN + 1];
-		strlcpy(data, (const char *)m.data, m.count); // data might be not null-terminated
+		strlcpy(data, (const char *)m.data, m.count); // data 可能不是以空字符结尾的
 		doCommand(data, true);
 	}
 
@@ -197,16 +197,16 @@ void handleMavlink(const void *_msg) {
 		if (m.target_system && m.target_system != mavlinkSysId) return;
 
 		if (!(m.type_mask & ATTITUDE_TARGET_TYPEMASK_ATTITUDE_IGNORE)) {
-			// Attitude control
+			// 姿态控制
 			attitudeTarget.w = m.q[0];
 			attitudeTarget.x = m.q[1];
-			attitudeTarget.y = -m.q[2]; // convert to flu
+			attitudeTarget.y = -m.q[2]; // 转换为FLU坐标系
 			attitudeTarget.z = -m.q[3];
 			ratesExtra.x = m.body_roll_rate;
 			ratesExtra.y = -m.body_pitch_rate;
 			ratesExtra.z = -m.body_yaw_rate;
 		} else {
-			// Rates control
+			// 角速度控制
 			attitudeTarget.invalidate();
 			ratesTarget.x = m.body_roll_rate;
 			ratesTarget.y = -m.body_pitch_rate;
@@ -227,7 +227,7 @@ void handleMavlink(const void *_msg) {
 		attitudeTarget.invalidate();
 		ratesTarget.invalidate();
 		torqueTarget.invalidate();
-		memcpy(motors, m.controls, sizeof(motors)); // copy motor thrusts
+		memcpy(motors, m.controls, sizeof(motors)); // 复制电机推力
 		armed = motors[0] > 0 || motors[1] > 0 || motors[2] > 0 || motors[3] > 0;
 	}
 
@@ -236,7 +236,7 @@ void handleMavlink(const void *_msg) {
 		mavlink_msg_log_request_data_decode(&msg, &m);
 		if (m.target_system && m.target_system != mavlinkSysId) return;
 
-		// Send all log records
+		// 发送全部日志记录
 		for (int i = 0; i < sizeof(logBuffer) / sizeof(logBuffer[0]); i++) {
 			mavlink_message_t msg;
 			mavlink_msg_log_data_pack(mavlinkSysId, MAV_COMP_ID_AUTOPILOT1, &msg, 0, i,
@@ -278,13 +278,13 @@ int handleMavlinkCommand(const void *_m) {
 	}
 
 	if (m.command == MAV_CMD_COMPONENT_ARM_DISARM) {
-		if (m.param1 == 1 && controlThrottle > 0.05) return MAV_RESULT_DENIED; // don't arm if throttle is not low
+		if (m.param1 == 1 && controlThrottle > 0.05) return MAV_RESULT_DENIED; // 油门未降到低位时禁止解锁
 		armed = m.param1 == 1;
 		return MAV_RESULT_ACCEPTED;
 	}
 
 	if (m.command == MAV_CMD_DO_SET_MODE) {
-		if (m.param2 < 0 || m.param2 > AUTO) return MAV_RESULT_DENIED; // incorrect mode
+		if (m.param2 < 0 || m.param2 > AUTO) return MAV_RESULT_DENIED; // 模式不正确
 		mode = m.param2;
 		return MAV_RESULT_ACCEPTED;
 	}
@@ -292,13 +292,13 @@ int handleMavlinkCommand(const void *_m) {
 	return MAV_RESULT_UNSUPPORTED;
 }
 
-// Send shell output to GCS
+// 将控制台输出发送到地面站
 void mavlinkPrint(const char* str) {
 	mavlinkPrintBuffer += str;
 }
 
 void sendMavlinkPrint() {
-	// Send mavlink print data in chunks
+	// 分块发送MAVLink打印数据
 	const char *str = mavlinkPrintBuffer.c_str();
 	for (int i = 0; i < strlen(str); i += MAVLINK_MSG_SERIAL_CONTROL_FIELD_DATA_LEN) {
 		char data[MAVLINK_MSG_SERIAL_CONTROL_FIELD_DATA_LEN + 1];
@@ -306,7 +306,7 @@ void sendMavlinkPrint() {
 		mavlink_message_t msg;
 		mavlink_msg_serial_control_pack(mavlinkSysId, MAV_COMP_ID_AUTOPILOT1, &msg,
 			SERIAL_CONTROL_DEV_SHELL,
-			i + MAVLINK_MSG_SERIAL_CONTROL_FIELD_DATA_LEN < strlen(str) ? SERIAL_CONTROL_FLAG_MULTI : 0, // more chunks to go
+			i + MAVLINK_MSG_SERIAL_CONTROL_FIELD_DATA_LEN < strlen(str) ? SERIAL_CONTROL_FLAG_MULTI : 0, // 还有更多数据块待发送
 			0, 0, strlen(data), (uint8_t *)data, 0, 0);
 		sendMessage(&msg);
 	}

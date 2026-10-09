@@ -1,7 +1,7 @@
 // Copyright (c) 2024 Oleg Kalachev <okalachev@gmail.com>
 // Repository: https://github.com/okalachev/flix
 
-// Parameters storage in flash memory
+// 参数在闪存中的存储
 
 #include <Preferences.h>
 #include "util.h"
@@ -19,12 +19,12 @@ extern LowPassFilter<float> voltageFilter;
 Preferences storage;
 
 struct Parameter {
-	const char *name; // max length is 15
+	const char *name; // 最大长度为15
 	bool integer;
-	union { float *f; int *i; }; // pointer to the variable
-	float initial; // default value
-	float cache; // what's stored in flash
-	void (*callback)(); // called after parameter change
+	union { float *f; int *i; }; // 指向变量的指针
+	float initial; // 默认值
+	float cache; // 闪存中存储的值
+	void (*callback)(); // 参数修改后调用
 	Parameter(const char *name, float *variable, void (*callback)() = nullptr) : name(name), integer(false), f(variable), callback(callback) {};
 	Parameter(const char *name, int *variable, void (*callback)() = nullptr) : name(name), integer(true), i(variable), callback(callback) {};
 	float getValue() const { return integer ? *i : *f; };
@@ -32,7 +32,7 @@ struct Parameter {
 };
 
 Parameter parameters[] = {
-	// control
+	// 控制
 	{"CTL_RATE_R_P", &rollRatePID.p},
 	{"CTL_RATE_R_I", &rollRatePID.i},
 	{"CTL_RATE_R_D", &rollRatePID.d},
@@ -58,7 +58,7 @@ Parameter parameters[] = {
 	{"CTL_FLT_MODE_0", &flightModes[0]},
 	{"CTL_FLT_MODE_1", &flightModes[1]},
 	{"CTL_FLT_MODE_2", &flightModes[2]},
-	// imu
+	// IMU
 	{"IMU_MODEL", &imuModel},
 	{"IMU_BUS", &imuBus},
 	{"IMU_PIN_SCK", &imuSckPin},
@@ -78,11 +78,11 @@ Parameter parameters[] = {
 	{"IMU_ACC_SCALE_Y", &accScale.y},
 	{"IMU_ACC_SCALE_Z", &accScale.z},
 	{"IMU_GYRO_BIAS_A", &gyroBiasFilter.alpha},
-	// estimate
+	// 估计
 	{"EST_ACC_WEIGHT", &accWeight},
 	{"EST_LVL_WEIGHT", &levelWeight},
 	{"EST_RATES_LPF_A", &ratesFilter.alpha},
-	// motors
+	// 电机
 	{"MOT_PIN_FL", &motorPins[MOT_FL], setupMotors},
 	{"MOT_PIN_FR", &motorPins[MOT_FR], setupMotors},
 	{"MOT_PIN_RL", &motorPins[MOT_RL], setupMotors},
@@ -92,7 +92,7 @@ Parameter parameters[] = {
 	{"MOT_PWM_STOP", &pwmStop},
 	{"MOT_PWM_MIN", &pwmMin},
 	{"MOT_PWM_MAX", &pwmMax},
-	// rc
+	// 遥控器
 	{"RC_RX_PIN", &rcRxPin, setupRC},
 	{"RC_ZERO_0", &channelZero[0]},
 	{"RC_ZERO_1", &channelZero[1]},
@@ -115,36 +115,36 @@ Parameter parameters[] = {
 	{"RC_THROTTLE", &throttleChannel},
 	{"RC_YAW", &yawChannel},
 	{"RC_MODE", &modeChannel},
-	// wifi
+	// WiFi
 	{"WIFI_MODE", &wifiMode},
 	{"WIFI_PORT_LOC", &udpLocalPort},
 	{"WIFI_PORT_REM", &udpRemotePort},
 	{"WIFI_LONG_RANGE", &wifiLongRange},
 	{"WIFI_BROADCAST", &wifiBroadcast},
-	// espnow
+	// ESP-NOW
 	{"ESPNOW_CHANNEL", &espnowChannel},
-	// mavlink
+	// MAVLink
 	{"MAV_SYS_ID", &mavlinkSysId},
 	{"MAV_RATE_SLOW", &telemetrySlow.rate},
 	{"MAV_RATE_ATT", &telemetryAttitude.rate},
 	{"MAV_RATE_RC", &telemetryRC.rate},
 	{"MAV_RATE_MOT", &telemetryMotors.rate},
 	{"MAV_RATE_IMU", &telemetryIMU.rate},
-	// power
+	// 电源
 	{"PWR_VOLT_PIN", &voltagePin, setupPower},
 	{"PWR_VOLT_SCALE", &voltageScale},
 	{"PWR_VOLT_LPF_A", &voltageFilter.alpha},
-	// safety
+	// 安全
 	{"SF_RC_LOSS_TIME", &rcLossTimeout},
 	{"SF_DESCEND_TIME", &descendTime},
 	{"SF_DISARM_TILT", &disarmTilt},
 };
 
 void setupParameters() {
-	print("Setup parameters\n");
+	print("正在初始化参数\n");
 	setDefaults();
 	storage.begin("flix");
-	// Read parameters from storage
+	// 从存储中读取参数
 	for (auto &parameter : parameters) {
 		parameter.initial = parameter.getValue();
 		if (storage.isKey(parameter.name)) {
@@ -180,7 +180,7 @@ float getParameter(const char *name) {
 bool setParameter(const char *name, const float value) {
 	for (auto &parameter : parameters) {
 		if (strcasecmp(parameter.name, name) == 0) {
-			if (parameter.integer && !isfinite(value)) return false; // can't set integer to NaN or Inf
+			if (parameter.integer && !isfinite(value)) return false; // 不能将整数设置为NaN或Inf
 			parameter.setValue(value);
 			if (parameter.callback) parameter.callback();
 			return true;
@@ -191,23 +191,23 @@ bool setParameter(const char *name, const float value) {
 
 void syncParameters() {
 	static Rate rate(1);
-	if (!rate) return; // sync once per second
-	if (motorsActive()) return; // don't use flash while flying, it may cause a delay
+	if (!rate) return; // 每秒同步一次
+	if (motorsActive()) return; // 飞行中不使用闪存，以免造成延迟
 
 	for (auto &parameter : parameters) {
-		if (floatEquals(parameter.getValue(), parameter.cache)) continue; // no change
+		if (floatEquals(parameter.getValue(), parameter.cache)) continue; // 没有变化
 
 		storage.putFloat(parameter.name, parameter.getValue());
-		parameter.cache = parameter.getValue(); // update cache
+		parameter.cache = parameter.getValue(); // 更新缓存
 	}
 }
 
 void printParameters(const char *filter) {
-	print("Name             Value          [Default]\n");
+	print("参数名            值             [默认值]\n");
 	for (auto &parameter : parameters) {
 		if (strncasecmp(parameter.name, filter, strlen(filter))) continue;
 
-		if (floatEquals(parameter.getValue(), parameter.initial)) { // parameter changed
+		if (floatEquals(parameter.getValue(), parameter.initial)) { // 参数已更改
 			print("%-15s  %-13g\n", parameter.name, parameter.getValue());
 		} else {
 			print("%-15s  %-13g  [%g]\n", parameter.name, parameter.getValue(), parameter.initial);

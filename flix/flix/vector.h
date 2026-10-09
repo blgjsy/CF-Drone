@@ -1,7 +1,7 @@
 // Copyright (c) 2023 Oleg Kalachev <okalachev@gmail.com>
 // Repository: https://github.com/okalachev/flix
 
-// Lightweight vector library
+// 轻量级向量库
 
 #pragma once
 
@@ -74,12 +74,12 @@ public:
 		return *this = *this - b;
 	}
 
-	// Element-wise multiplication
+	// 逐元素乘法
 	Vector operator * (const Vector& b) const {
 		return Vector(x * b.x, y * b.y, z * b.z);
 	}
 
-	// Element-wise division
+	// 逐元素除法
 	Vector operator / (const Vector& b) const {
 		return Vector(x / b.x, y / b.y, z / b.z);
 	}
@@ -111,11 +111,11 @@ public:
 			return Vector(0, 0, 0);
 		}
 		Vector direction = cross(a, b);
-		if (direction.norm() < 1e-6) { // vectors are parallel
-			if (dot(a, b) > 0) { // same direction
+		if (direction.norm() < 1e-6) { // 向量平行
+			if (dot(a, b) > 0) { // 同方向
 				return Vector(0, 0, 0);
 			}
-			// opposite direction
+			// 反方向
 			Vector perp = cross(a, Vector(1, 0, 0));
 			if (perp.norm() < 1e-6) {
 				perp = cross(a, Vector(0, 1, 0));

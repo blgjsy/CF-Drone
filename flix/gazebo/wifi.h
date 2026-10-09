@@ -1,7 +1,7 @@
 // Copyright (c) 2023 Oleg Kalachev <okalachev@gmail.com>
 // Repository: https://github.com/okalachev/flix
 
-// sendWiFi and receiveWiFi implementations for the simulation
+// 仿真的sendWiFi和receiveWiFi实现
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
@@ -11,7 +11,7 @@
 #include <sys/poll.h>
 #include <gazebo/gazebo.hh>
 
-// Mocks
+// 模拟桩(mock)
 int wifiMode = 1;
 int wifiLongRange = 0;
 int wifiBroadcast = 0;
@@ -26,22 +26,22 @@ int wifiSocket;
 
 void setupWiFi() {
 	wifiSocket = socket(AF_INET, SOCK_DGRAM, 0);
-	sockaddr_in addr; // local address
+	sockaddr_in addr; // 本地地址
 	addr.sin_family = AF_INET;
 	addr.sin_addr.s_addr = INADDR_ANY;
 	addr.sin_port = htons(udpLocalPort);
 	if (bind(wifiSocket, (sockaddr *)&addr, sizeof(addr))) {
-		gzerr << "Failed to bind WiFi UDP socket on port " << udpLocalPort << std::endl;
+		gzerr << "无法在端口 " << udpLocalPort << " 上绑定WiFi UDP套接字" << std::endl;
 		return;
 	}
 	int broadcast = 1;
-	setsockopt(wifiSocket, SOL_SOCKET, SO_BROADCAST, &broadcast, sizeof(broadcast)); // enable broadcast
-	gzmsg << "WiFi UDP socket initialized on port " << udpLocalPort << " (remote port " << udpRemotePort << ")" << std::endl;
+	setsockopt(wifiSocket, SOL_SOCKET, SO_BROADCAST, &broadcast, sizeof(broadcast)); // 启用广播
+	gzmsg << "WiFi UDP套接字已在端口 " << udpLocalPort << " 初始化（远端端口 " << udpRemotePort << "）" << std::endl;
 }
 
 void sendWiFi(const uint8_t *buf, int len) {
 	if (wifiSocket == 0) setupWiFi();
-	sockaddr_in addr; // remote address
+	sockaddr_in addr; // 远端地址
 	addr.sin_family = AF_INET;
 	addr.sin_addr.s_addr = inet_addr(udpRemoteIP);
 	addr.sin_port = htons(udpRemotePort);
@@ -50,6 +50,6 @@ void sendWiFi(const uint8_t *buf, int len) {
 
 int receiveWiFi(uint8_t *buf, int len) {
 	struct pollfd pfd = { .fd = wifiSocket, .events = POLLIN };
-	if (poll(&pfd, 1, 0) <= 0) return 0; // check if there is data to read
+	if (poll(&pfd, 1, 0) <= 0) return 0; // 检查是否有数据可读
 	return recv(wifiSocket, buf, len, 0);
 }

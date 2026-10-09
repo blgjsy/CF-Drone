@@ -1,7 +1,7 @@
 // Copyright (c) 2023 Oleg Kalachev <okalachev@gmail.com>
 // Repository: https://github.com/okalachev/flix
 
-// In-RAM logging
+// 内存中的日志记录
 
 #include "vector.h"
 #include "util.h"
@@ -69,7 +69,7 @@ void printLogHeader() {
 
 void printLogData() {
 	for (int i = 0; i < LOG_SIZE; i++) {
-		if (logBuffer[i][0] == 0) continue; // skip empty records
+		if (logBuffer[i][0] == 0) continue; // 跳过空记录
 		for (int j = 0; j < logColumns; j++) {
 			print("%g%s", logBuffer[i][j], j < logColumns - 1 ? "," : "\n");
 		}

@@ -1,7 +1,7 @@
 // Copyright (c) 2023 Oleg Kalachev <okalachev@gmail.com>
 // Repository: https://github.com/okalachev/flix
 
-// Gazebo plugin for running Arduino code and simulating the drone
+// 用于运行Arduino代码并仿真无人机的Gazebo插件
 
 #include <functional>
 #include <cmath>
@@ -55,31 +55,31 @@ public:
 		initNode();
 		Serial.begin(0);
 		setupParameters();
-		rcRxPin = 1; // set rc pin to enable rc reading
-		gzmsg << "Flix plugin loaded" << endl;
+		rcRxPin = 1; // 设置遥控引脚以启用遥控读取
+		gzmsg << "Flix插件已加载" << endl;
 	}
 
 	void OnReset() {
-		attitude = Quaternion(); // reset estimated attitude
+		attitude = Quaternion(); // 重置估计的姿态
 		armed = false;
 		__resetTime += __micros;
-		gzmsg << "Flix plugin reset" << endl;
+		gzmsg << "Flix插件已重置" << endl;
 	}
 
 	void OnUpdate() {
 		__micros = model->GetWorld()->SimTime().Double() * 1000000;
 		step();
 
-		// read virtual imu
+		// 读取虚拟IMU
 		gyro = Vector(imu->AngularVelocity().X(), imu->AngularVelocity().Y(), imu->AngularVelocity().Z());
 		acc = this->accFilter.update(Vector(imu->LinearAcceleration().X(), imu->LinearAcceleration().Y(), imu->LinearAcceleration().Z()));
 
-		voltage = 4.2f; // dummy voltage value
+		voltage = 4.2f; // 虚拟电压值
 
 		readRC();
 		estimate();
 
-		// correct yaw to the actual yaw
+		// 将偏航校正为实际偏航
 		attitude.setYaw(this->model->WorldPose().Yaw());
 
 		control();
@@ -93,11 +93,11 @@ public:
 	}
 
 	void applyMotorForces() {
-		// thrusts
-		const double dist = 0.035355; // motors shift from the center, m
-		const double maxThrust = 0.03 * ONE_G; // ~30 g, https://youtu.be/VtKI4Pjx8Sk?&t=78
+		// 推力
+		const double dist = 0.035355; // 电机相对中心的偏移距离，米
+		const double maxThrust = 0.03 * ONE_G; // 约30克，https://youtu.be/VtKI4Pjx8Sk?&t=78
 
-		const float scale0 = 1.0, scale1 = 1.1, scale2 = 0.9, scale3 = 1.05; // imitating motors asymmetry
+		const float scale0 = 1.0, scale1 = 1.1, scale2 = 0.9, scale3 = 1.05; // 模拟电机不对称
 		float mfl = scale0 * maxThrust * motors[MOT_FL];
 		float mfr = scale1 * maxThrust * motors[MOT_FR];
 		float mrl = scale2 * maxThrust * motors[MOT_RL];
@@ -108,8 +108,8 @@ public:
 		body->AddLinkForce(Vector3d(0.0, 0.0, mrl), Vector3d(-dist, dist, 0.0));
 		body->AddLinkForce(Vector3d(0.0, 0.0, mrr), Vector3d(-dist, -dist, 0.0));
 
-		// torque
-		const double maxTorque = 0.0024 * ONE_G; // ~24 g*cm
+		// 力矩
+		const double maxTorque = 0.0024 * ONE_G; // 约24克·厘米
 		body->AddRelativeTorque(Vector3d(0.0, 0.0, scale0 * maxTorque * motors[MOT_FL]));
 		body->AddRelativeTorque(Vector3d(0.0, 0.0, scale1 * -maxTorque * motors[MOT_FR]));
 		body->AddRelativeTorque(Vector3d(0.0, 0.0, scale2 * -maxTorque * motors[MOT_RL]));
@@ -120,7 +120,7 @@ public:
 		nodeHandle = transport::NodePtr(new transport::Node());
 		nodeHandle->Init();
 		string ns = "~/" + model->GetName();
-		// create motors output topics for debugging and plotting
+		// 创建电机输出主题，用于调试和绘图
 		motorPub[0] = nodeHandle->Advertise<msgs::Int>(ns + "/motor0");
 		motorPub[1] = nodeHandle->Advertise<msgs::Int>(ns + "/motor1");
 		motorPub[2] = nodeHandle->Advertise<msgs::Int>(ns + "/motor2");

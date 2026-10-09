@@ -1,7 +1,7 @@
 // Copyright (c) 2023 Oleg Kalachev <okalachev@gmail.com>
 // Repository: https://github.com/okalachev/flix
 
-// Declarations of some functions and variables in Arduino code
+// Arduino代码中部分函数和变量的声明
 
 #include <cmath>
 #include <stdio.h>
@@ -25,7 +25,7 @@ int imuModel = 1, imuBus = 0;
 int imuSckPin = 0, imuMisoPin = 0, imuMosiPin = 0, imuCsPin = -1, imuIntPin = -1;
 int imuSdaPin = 0, imuSclPin = 0;
 
-// declarations
+// 声明
 void step();
 void computeLoopRate();
 void applyGyro();
@@ -76,11 +76,11 @@ bool setParameter(const char *name, const float value);
 void printParameters(const char *filter);
 void resetParameters();
 
-// mocks
+// 模拟桩(mock)
 void setLED(bool on) {};
-void calibrateAccel() { print("Skip accel calibrating\n"); };
-void printIMUCalibration() { print("cal: N/A\n"); };
+void calibrateAccel() { print("跳过加速度计校准\n"); };
+void printIMUCalibration() { print("校准：N/A\n"); };
 void printIMUInfo() {};
 void printWiFiInfo() {};
-void configWiFi(bool, const char*, const char*) { print("Skip WiFi config\n"); };
-void setWiFiMode(const String& mode) { print("Skip WiFi mode set\n"); };
+void configWiFi(bool, const char*, const char*) { print("跳过WiFi配置\n"); };
+void setWiFiMode(const String& mode) { print("跳过WiFi模式设置\n"); };

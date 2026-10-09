@@ -1,7 +1,7 @@
 // Copyright (c) 2023 Oleg Kalachev <okalachev@gmail.com>
 // Repository: https://github.com/okalachev/flix
 
-// Lightweight rotation quaternion library
+// 轻量级旋转四元数库
 
 #pragma once
 
@@ -100,7 +100,7 @@ public:
 	}
 
 	Vector toRotationVector() const {
-		if (w == 1 && x == 0 && y == 0 && z == 0) return Vector(0, 0, 0); // neutral quaternion
+		if (w == 1 && x == 0 && y == 0 && z == 0) return Vector(0, 0, 0); // 中性四元数
 		float angle;
 		Vector axis;
 		toAxisAngle(axis, angle);
@@ -196,7 +196,7 @@ public:
 		return Vector(res.x, res.y, res.z);
 	}
 
-	// Rotate quaternion by quaternion
+	// 用四元数旋转四元数
 	static Quaternion rotate(const Quaternion& a, const Quaternion& b, const bool normalize = true) {
 		Quaternion rotated = a * b;
 		if (normalize) {
@@ -205,12 +205,12 @@ public:
 		return rotated;
 	}
 
-	// Rotate vector by quaternion
+	// 用四元数旋转向量
 	static Vector rotateVector(const Vector& v, const Quaternion& q) {
 		return q.conjugateInversed(v);
 	}
 
-	// Quaternion between two quaternions a and b
+	// a和b两个四元数之间的四元数
 	static Quaternion between(const Quaternion& a, const Quaternion& b, const bool normalize = true) {
 		Quaternion q = a * b.inversed();
 		if (normalize) {

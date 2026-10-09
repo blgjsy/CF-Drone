@@ -1,12 +1,12 @@
 // Copyright (c) 2023 Oleg Kalachev <okalachev@gmail.com>
 // Repository: https://github.com/okalachev/flix
 
-// Board's LED control
+// 板载LED控制
 
 #define BLINK_PERIOD 500000
 
 #ifndef LED_BUILTIN
-#define LED_BUILTIN 2 // for ESP32 Dev Module
+#define LED_BUILTIN 2 // 用于 ESP32 开发板
 #endif
 
 void setupLED() {
@@ -16,7 +16,7 @@ void setupLED() {
 void setLED(bool on) {
 	static bool state = false;
 	if (on == state) {
-		return; // don't call digitalWrite if the state is the same
+		return; // 如果状态相同则不调用digitalWrite
 	}
 	digitalWrite(LED_BUILTIN, on ? HIGH : LOW);
 	state = on;

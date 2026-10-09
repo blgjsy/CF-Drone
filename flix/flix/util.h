@@ -1,7 +1,7 @@
 // Copyright (c) 2023 Oleg Kalachev <okalachev@gmail.com>
 // Repository: https://github.com/okalachev/flix
 
-// Utility functions
+// 工具函数
 
 #pragma once
 
@@ -29,7 +29,7 @@ bool floatEquals(float a, float b, float epsilon = 0) {
 	return fabsf(a - b) <= epsilon;
 }
 
-// Wrap angle to [-PI, PI)
+// 将角度包装到 [-PI, PI)
 float wrapAngle(float angle) {
 	angle = fmodf(angle, 2 * PI);
 	if (angle > PI) {
@@ -40,7 +40,7 @@ float wrapAngle(float angle) {
 	return angle;
 }
 
-// Trim and split string by spaces
+// 去除首尾空格并按空格拆分字符串
 void splitString(String& str, String& token0, String& token1, String& token2) {
 	str.trim();
 	if (str.isEmpty()) return;
@@ -53,18 +53,18 @@ void splitString(String& str, String& token0, String& token1, String& token2) {
 	if (token2.c_str() == NULL) token2 = "";
 }
 
-// Simplified ESP-NOW Serial without resends
+// 不带重发功能的简化版ESP-NOW串口
 class ESPNOWSerial : public ESP_NOW_Serial_Class {
 public:
 	int lost = 0;
 	using ESP_NOW_Serial_Class::ESP_NOW_Serial_Class;
 	void onSent(bool success) override {
 		if (!success) lost++;
-		ESP_NOW_Serial_Class::onSent(true); // always report success to avoid resends
+		ESP_NOW_Serial_Class::onSent(true); // 始终报告成功以避免重发
 	}
 };
 
-// Rate limiter
+// 频率限制器
 class Rate {
 public:
 	float rate;
@@ -73,7 +73,7 @@ public:
 
 	operator bool() {
 		if (t == last) {
-			return true; // the same step
+			return true; // 同一控制周期
 		}
 		if (t - last >= 1 / rate) {
 			last = t;
@@ -83,7 +83,7 @@ public:
 	}
 };
 
-// Delay filter for boolean signals - ensures the signal is on for at least 'delay' seconds
+// 布尔信号的延迟滤波器 - 确保信号至少持续 'delay' 秒
 class Delay {
 public:
 	float delay;

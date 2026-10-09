@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Oleg Kalachev <okalachev@gmail.com>
 // Repository: https://github.com/okalachev/flix
 
-// Power management
+// 电源管理
 
 #include <soc/soc.h>
 #include <soc/rtc_cntl_reg.h>
@@ -14,8 +14,8 @@ int voltagePin = -1;
 float voltageScale = 2;
 
 void setupPower() {
-	REG_CLR_BIT(RTC_CNTL_BROWN_OUT_REG, RTC_CNTL_BROWN_OUT_ENA); // disable reset on low voltage
-	if (digitalPinToAnalogChannel(voltagePin) == -1) voltagePin = -1; // test ADC pin
+	REG_CLR_BIT(RTC_CNTL_BROWN_OUT_REG, RTC_CNTL_BROWN_OUT_ENA); // 低电压时禁用复位
+	if (digitalPinToAnalogChannel(voltagePin) == -1) voltagePin = -1; // 测试ADC引脚
 }
 
 void readVoltage() {

@@ -1,7 +1,7 @@
 // Copyright (c) 2023 Oleg Kalachev <okalachev@gmail.com>
 // Repository: https://github.com/okalachev/flix
 
-// Implementation of command line interface
+// 命令行接口的实现
 
 #include "pid.h"
 #include "vector.h"
@@ -116,23 +116,23 @@ void doCommand(String str, bool echo = false) {
 		if (success) {
 			print("%s = %g\n", arg0.c_str(), getParameter(arg0.c_str()));
 		} else {
-			print("Parameter not found: %s\n", arg0.c_str());
+			print("未找到参数：%s\n", arg0.c_str());
 		}
 	} else if (command == "preset") {
 		resetParameters();
 	} else if (command == "time") {
-		print("Time: %f\n", t);
-		print("Loop rate: %.0f\n", loopRate);
-		print("dt: %f\n", dt);
+		print("时间：%f\n", t);
+		print("循环频率：%.0f\n", loopRate);
+		print("时间步长 dt：%f\n", dt);
 	} else if (command == "imu") {
 		printIMUInfo();
 		printIMUCalibration();
-		print("landed: %d\n", landed);
+		print("已着陆：%d\n", landed);
 	} else if (command == "st") {
-		print("rates: %g %g %g\n", rates.x, rates.y, rates.z);
-		print("attitude: %g %g %g %g\n", attitude.w, attitude.x, attitude.y, attitude.z);
-		print("roll: %g° pitch: %g° yaw: %g°\n", degrees(attitude.getRoll()), degrees(attitude.getPitch()), degrees(attitude.getYaw()));
-		print("landed: %d\n", landed);
+		print("角速度：%g %g %g\n", rates.x, rates.y, rates.z);
+		print("姿态：%g %g %g %g\n", attitude.w, attitude.x, attitude.y, attitude.z);
+		print("横滚：%g° 俯仰：%g° 偏航：%g°\n", degrees(attitude.getRoll()), degrees(attitude.getPitch()), degrees(attitude.getYaw()));
+		print("已着陆：%d\n", landed);
 	} else if (command == "arm") {
 		armed = true;
 	} else if (command == "disarm") {
@@ -146,17 +146,17 @@ void doCommand(String str, bool echo = false) {
 	} else if (command == "auto") {
 		mode = AUTO;
 	} else if (command == "rc") {
-		print("channels: ");
+		print("通道：");
 		for (int i = 0; i < 16; i++) {
 			print("%u ", channels[i]);
 		}
-		print("\nroll: %g pitch: %g yaw: %g throttle: %g mode: %g\n",
+		print("\n横滚：%g 俯仰：%g 偏航：%g 油门：%g 模式：%g\n",
 			controlRoll, controlPitch, controlYaw, controlThrottle, controlMode);
-		print("time: %.1f\n", controlTime);
-		print("mode: %s\n", getModeName());
-		print("armed: %d\n", armed);
+		print("时间：%.1f\n", controlTime);
+		print("模式：%s\n", getModeName());
+		print("已解锁：%d\n", armed);
 	} else if (command == "pw") {
-		print("Voltage: %.1f V\n", voltage);
+		print("电压：%.1f V\n", voltage);
 	} else if (command == "wifi" && arg0 == "") {
 		printWiFiInfo();
 	} else if (command == "wifi") {
@@ -168,7 +168,7 @@ void doCommand(String str, bool echo = false) {
 	} else if (command == "espnow") {
 		configWiFi(W_ESPNOW, arg0.c_str(), arg1.c_str());
 	} else if (command == "mot") {
-		print("front-right %g front-left %g rear-right %g rear-left %g\n",
+		print("右前 %g 左前 %g 右后 %g 左后 %g\n",
 			motors[MOT_FR], motors[MOT_FL], motors[MOT_RR], motors[MOT_RL]);
 	} else if (command == "log") {
 		printLogHeader();
@@ -187,13 +187,13 @@ void doCommand(String str, bool echo = false) {
 		testMotor(MOT_RL, arg0.isEmpty() ? 0.2 : arg0.toFloat());
 	} else if (command == "sys") {
 #ifdef ESP32
-		print("Chip: %s\n", ESP.getChipModel());
-		print("Temperature: %.1f °C\n", temperatureRead());
-		print("Total RAM: %d KB\n", ESP.getHeapSize() / 1024);
-		print("Free heap: %d KB\n", ESP.getFreeHeap() / 1024);
-		print("Firmware: " __DATE__ " " __TIME__ "\n");
-		// Print tasks table
-		print("Num  Task                MinSt  Prio  Core  CPU%%\n");
+		print("芯片：%s\n", ESP.getChipModel());
+		print("温度：%.1f °C\n", temperatureRead());
+		print("总内存：%d KB\n", ESP.getHeapSize() / 1024);
+		print("空闲堆内存：%d KB\n", ESP.getFreeHeap() / 1024);
+		print("固件：" __DATE__ " " __TIME__ "\n");
+		// 打印任务表
+		print("编号  任务                最小栈  优先级 核心  CPU%%\n");
 		int taskCount = uxTaskGetNumberOfTasks();
 		TaskStatus_t *systemState = new TaskStatus_t[taskCount];
 		uint32_t totalRunTime;
@@ -212,7 +212,7 @@ void doCommand(String str, bool echo = false) {
 	} else if (command == "reboot") {
 		ESP.restart();
 	} else {
-		print("Invalid command: %s\n", command.c_str());
+		print("无效命令：%s\n", command.c_str());
 	}
 }
 

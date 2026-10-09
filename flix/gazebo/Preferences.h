@@ -1,7 +1,7 @@
 // Copyright (c) 2024 Oleg Kalachev <okalachev@gmail.com>
 // Repository: https://github.com/okalachev/flix
 
-// Partial implementation of the ESP32 Preferences library for the simulation
+// 仿真用ESP32 Preferences库的部分实现
 
 #include <map>
 #include <fstream>
@@ -16,7 +16,7 @@ private:
 		std::ifstream file(storagePath);
 		std::string key, value;
 		while (file >> key >> value) {
-			storage[key] = std::stof(value); // using stof to support NaN and Infinity
+			storage[key] = std::stof(value); // 使用stof以支持NaN和Infinity
 		}
 	}
 
@@ -30,7 +30,7 @@ private:
 public:
 	bool begin(const char *name, bool readOnly = false, const char *partition_label = NULL) {
 		storagePath = getPluginPath().parent_path() / (std::string(name) + ".txt");
-		gzmsg << "Preferences initialized: " << storagePath << std::endl;
+		gzmsg << "参数存储已初始化：" << storagePath << std::endl;
 		readFromFile();
 		return true;
 	}
