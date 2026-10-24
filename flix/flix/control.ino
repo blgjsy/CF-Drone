@@ -19,6 +19,17 @@ Vector ratesExtra; // 前馈角速度
 Vector torqueTarget;
 float thrustTarget;
 
+// 气压定高状态
+bool altHoldEngaged = false;    // 定高是否激活
+float altHoldTarget = 0;        // 目标高度 (m)
+float altHoldBaseThrottle = 0;  // 启用时的基准油门（修正量的基准）
+float altHoldIntegral = 0;      // PID 积分项
+float altHoldLastError = 0;     // 上次高度误差
+float altHoldP = 0.8, altHoldI = 0.05, altHoldD = 0.1; // 高度PID增益
+float altHoldIntegralLimit = 0.3;   // 积分限幅
+float altHoldMaxCorrection = 0.25;  // 油门修正限幅（最大 ±25% 油门）
+float altHoldExitThrottle = 0.2;    // 油门摇杆偏移超过此值自动退出定高
+
 PID rollRatePID(0.05, 0.2, 0.001, 0.3, 0.2);
 PID pitchRatePID(0.05, 0.2, 0.001, 0.3, 0.2);
 PID yawRatePID(0.3, 0, 0, 0.3);
@@ -32,8 +43,16 @@ int flightModes[] = {STAB, STAB, STAB}; // 遥控器模式开关映射
 extern const int MOT_RL, MOT_RR, MOT_FR, MOT_FL;
 extern float controlRoll, controlPitch, controlThrottle, controlYaw, controlMode;
 
+#if WEB_RC_ENABLED
+extern uint16_t webRCButtons; // 网页遥控按钮位掩码（在 web_rc.ino 中定义）
+#endif
+
 void control() {
 	interpretControls();
+#if WEB_RC_ENABLED
+	interpretWebRC();
+#endif
+	updateAltHold();
 	failsafe();
 	controlAttitude();
 	controlRates();
@@ -47,8 +66,14 @@ void interpretControls() {
 
 	if (mode == AUTO) return; // 在自动模式下，飞手输入不生效
 
+#if WEB_RC_ENABLED
+	if (!isUsingWebRC()) { // 网页遥控激活时，实体遥控的解锁手势失效，避免互相干扰
+#endif
 	if (controlThrottle < 0.05 && controlYaw > 0.95) armed = true; // 解锁手势
 	if (controlThrottle < 0.05 && controlYaw < -0.95) armed = false; // 锁定手势
+#if WEB_RC_ENABLED
+	}
+#endif
 
 	if (abs(controlYaw) < 0.1) controlYaw = 0; // 偏航死区
 
@@ -74,6 +99,149 @@ void interpretControls() {
 		torqueTarget = Vector(controlRoll, controlPitch, -controlYaw) * 0.1;
 	}
 }
+
+// ==================== 气压定高 ====================
+
+// 检查定高方法是否受支持（是否检测到就绪的气压计）
+bool altHoldSupported() {
+#if BARO_ENABLED
+	return isBaroReady();
+#else
+	return false;
+#endif
+}
+
+// 启用定高。切换时检查是否支持：不支持则提醒并拒绝；force=true 可强制启用
+bool engageAltHold(bool force) {
+	if (altHoldEngaged) return true;
+
+	if (!altHoldSupported()) {
+		print("❌ 定高不可用：未检测到气压计（可用 baro 命令查看状态）\n");
+		if (!force) {
+			print("提示：可执行 althold force 强制启用（无气压计时定高不生效）\n");
+			return false;
+		}
+		print("⚠️ 已强制启用定高：无气压计数据，定高将不生效\n");
+	}
+	if (!armed) {
+		print("❌ 请先解锁再启用定高\n");
+		return false;
+	}
+	if (mode != STAB) {
+		print("❌ 定高仅在稳定模式(STAB)下可用，当前模式：%s\n", getModeName());
+		return false;
+	}
+
+	altHoldTarget = 0;
+#if BARO_ENABLED
+	altHoldTarget = altHoldSupported() ? getAltitude() : 0;
+#endif
+	altHoldBaseThrottle = thrustTarget;
+	altHoldIntegral = 0;
+	altHoldLastError = 0;
+	altHoldEngaged = true;
+	print("✅ 定高已启用，目标高度 %.2f m，基准油门 %.0f%%\n", altHoldTarget, altHoldBaseThrottle * 100);
+	return true;
+}
+
+void disengageAltHold(const char *reason) {
+	if (!altHoldEngaged) return;
+	altHoldEngaged = false;
+	altHoldIntegral = 0;
+	altHoldLastError = 0;
+	if (reason) {
+		print("定高已退出：%s\n", reason);
+	} else {
+		print("定高已关闭\n");
+	}
+}
+
+// 定高控制：根据高度误差计算油门，覆盖手动油门
+void updateAltHold() {
+	if (!altHoldEngaged) return;
+#if BARO_ENABLED
+	if (!armed || mode != STAB) {
+		disengageAltHold("未解锁或模式已改变");
+		return;
+	}
+	if (!altHoldSupported()) {
+		disengageAltHold("气压计不可用");
+		return;
+	}
+	// 油门摇杆大幅移动时交还手动控制
+	if (abs(controlThrottle - altHoldBaseThrottle) > altHoldExitThrottle) {
+		disengageAltHold("油门摇杆大幅移动");
+		return;
+	}
+	if (!(dt > 0)) return;
+
+	float error = altHoldTarget - getAltitude();
+	altHoldIntegral = constrain(altHoldIntegral + error * dt, -altHoldIntegralLimit, altHoldIntegralLimit);
+	float derivative = (error - altHoldLastError) / dt;
+	altHoldLastError = error;
+	float correction = altHoldP * error + altHoldI * altHoldIntegral + altHoldD * derivative;
+	correction = constrain(correction, -altHoldMaxCorrection, altHoldMaxCorrection);
+	// 目标推力 = 基准推力 + 修正量（绝对值，不做累加，避免漂移）
+	thrustTarget = constrain(altHoldBaseThrottle + correction, 0.05f, 1.0f);
+#else
+	disengageAltHold("未编译气压计支持");
+#endif
+}
+
+const char* getAltHoldStatus() {
+	if (!altHoldEngaged) return "关闭";
+	if (!altHoldSupported()) return "强制启用(无气压计)";
+	return "运行中";
+}
+
+#if WEB_RC_ENABLED
+// 网页遥控器按钮处理（上升沿触发）
+void interpretWebRC() {
+	if (!isUsingWebRC()) return;
+
+	static uint16_t lastWebRCButtons = 0;
+	uint16_t risingEdge = webRCButtons & ~lastWebRCButtons;
+	lastWebRCButtons = webRCButtons;
+
+	// 按钮0：解锁
+	if (risingEdge & 0x0001) {
+		if (controlThrottle > 0.05) {
+			setWebRCWarn("油门未归零，无法解锁");
+		} else {
+			armed = true;
+		}
+	}
+	// 按钮1：上锁
+	if (risingEdge & 0x0002) {
+		armed = false;
+		disengageAltHold(nullptr);
+	}
+	// 按钮2：急停
+	if (risingEdge & 0x0004) {
+		armed = false;
+		thrustTarget = 0;
+		disengageAltHold(nullptr);
+		setWebRCWarn("已急停");
+	}
+	// 按钮3：模式循环 STAB ↔ ACRO
+	if (risingEdge & 0x0008) {
+		if (mode == STAB) {
+			mode = ACRO;
+			disengageAltHold("模式已切换到特技");
+		} else {
+			mode = STAB;
+		}
+	}
+	// 按钮4：定高开关（切换时检查气压计支持，不支持时提醒）
+	if (risingEdge & 0x0010) {
+		if (altHoldEngaged) {
+			disengageAltHold(nullptr);
+		} else if (!engageAltHold(false)) {
+			setWebRCWarn(altHoldSupported() ? "定高启用失败（请先解锁并切到自稳）" : "定高不可用：未检测到气压计");
+		}
+	}
+}
+#endif
 
 void controlAttitude() {
 	if (!armed || attitudeTarget.invalid() || thrustTarget < 0.1) return; // 跳过姿态控制

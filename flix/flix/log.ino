@@ -13,6 +13,12 @@
 Vector attitudeEuler;
 Vector attitudeTargetEuler;
 
+extern float voltage;
+extern float current;
+#if BARO_ENABLED
+extern float baroAltitude;
+#endif
+
 struct LogEntry {
 	const char *name;
 	float *value;
@@ -32,7 +38,12 @@ LogEntry logEntries[] = {
 	{"attitudeTarget.x", &attitudeTargetEuler.x},
 	{"attitudeTarget.y", &attitudeTargetEuler.y},
 	{"attitudeTarget.z", &attitudeTargetEuler.z},
-	{"thrustTarget", &thrustTarget}
+	{"thrustTarget", &thrustTarget},
+	{"bat.voltage", &voltage},
+	{"bat.current", &current},
+#if BARO_ENABLED
+	{"baro.altitude", &baroAltitude},
+#endif
 };
 
 const int logColumns = sizeof(logEntries) / sizeof(logEntries[0]);

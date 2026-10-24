@@ -5,20 +5,26 @@
 
 extern float controlTime;
 extern float controlRoll, controlPitch, controlThrottle, controlYaw;
+extern float voltage;
 
 float rcLossTimeout = 1;
 float descendTime = 10;
 float disarmTilt = radians(120);
+float batteryLowV = 0; // 低电压保护阈值 (V)，0 表示禁用
 
 void failsafe() {
 	rcLossFailsafe();
 	autoFailsafe();
 	tiltFailsafe();
+	batteryFailsafe();
 }
 
 // 遥控器信号丢失保护
 void rcLossFailsafe() {
 	if (!armed) return;
+#if WEB_RC_ENABLED
+	if (isUsingWebRC()) return; // 网页遥控连接由 readWebRC 内的超时逻辑负责
+#endif
 	if (t - controlTime > rcLossTimeout) {
 		descend();
 	}
@@ -57,5 +63,22 @@ void tiltFailsafe() {
 	float tilt = acos(up.z);
 	if (disarmTilt && tilt > disarmTilt) {
 		armed = false;
+	}
+}
+
+// 低电压保护：检测到电池电压低于阈值时，切换到 AUTO 并平滑下降，最终断电
+void batteryFailsafe() {
+	if (!armed) return;
+	if (!(batteryLowV > 0)) return; // 未启用（阈值为 0）
+	if (!valid(voltage)) return; // 无电压数据
+
+	if (voltage < batteryLowV) {
+		mode = AUTO;
+		attitudeTarget = Quaternion();
+		thrustTarget -= dt / descendTime;
+		if (thrustTarget < 0) {
+			thrustTarget = 0;
+			armed = false; // 关闭电机
+		}
 	}
 }

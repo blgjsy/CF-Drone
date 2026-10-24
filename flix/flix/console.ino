@@ -1,7 +1,7 @@
 // Copyright (c) 2023 Oleg Kalachev <okalachev@gmail.com>
 // Repository: https://github.com/okalachev/flix
 
-// 命令行接口的实现
+// 命令行接口的实现(把命令行界面做出来)
 
 #include "pid.h"
 #include "vector.h"
@@ -18,6 +18,14 @@ extern int mode;
 extern bool armed;
 extern LowPassFilter<Vector> gyroBiasFilter;
 extern float voltage;
+extern float current;
+extern int ledPin, ledChannel;
+extern float ledThreshold;
+extern bool altHoldEngaged;
+extern float altHoldTarget;
+#if WEB_RC_ENABLED
+extern bool webConsoleEnabled;
+#endif
 
 const char* motd =
 " _______  __       __  ___   ___\n"
@@ -27,6 +35,7 @@ const char* motd =
 "|  |     |  `----.|  |  /  .  \\\n"
 "|__|     |_______||__| /__/ \\__\\\n\n"
 "(C) Oleg Kalachev , Gemr\n"
+"版本：debug-2.1.1-2026.10.24.1623\n"
 "仓库：https://github.com/blgjsy/CF-Drone\n"
 "原始仓库：https://github.com/okalachev/flix\n\n"
 "命令:\n"
@@ -45,6 +54,10 @@ const char* motd =
 "rc - 显示遥控数据\n"
 "cr - 校准遥控器\n"
 "pw - 显示电源信息\n"
+"led [on|off] - 显示/控制遥控 LED\n"
+"althold [on|off|force] - 启用/关闭/强制启用气压定高\n"
+"baro [reset] - 查看气压计状态 / 重新标定零高度\n"
+"web [on|off] - 开启/关闭网页遥控器\n"
 "wifi - 显示 Wi-Fi 信息\n"
 "wifi ap/sta/espnow/off - 设置 Wi-Fi 模式：作为服务端/客户端/ESP-NOW/关闭\n"
 "ap <ssid> <password> - 配置 Wi-Fi 接入点\n"
@@ -81,6 +94,9 @@ void print(const char* format, ...) {
 	va_end(args);
 	Serial.print(buf);
 	mavlinkPrint(buf);
+#if WEB_RC_ENABLED
+	if (webConsoleEnabled) webLog(buf); // 同步输出到网页调试控制台
+#endif
 }
 
 void pause(float duration) {
@@ -120,6 +136,7 @@ void doCommand(String str, bool echo = false) {
 		}
 	} else if (command == "preset") {
 		resetParameters();
+		print("参数已重置为默认值\n");
 	} else if (command == "time") {
 		print("时间：%f\n", t);
 		print("循环频率：%.0f\n", loopRate);
@@ -127,24 +144,30 @@ void doCommand(String str, bool echo = false) {
 	} else if (command == "imu") {
 		printIMUInfo();
 		printIMUCalibration();
-		print("已着陆：%d\n", landed);
+		print("着陆状态（1true表示已着陆，0false表示未着陆）：%d\n", landed);
 	} else if (command == "st") {
 		print("角速度：%g %g %g\n", rates.x, rates.y, rates.z);
 		print("姿态：%g %g %g %g\n", attitude.w, attitude.x, attitude.y, attitude.z);
 		print("横滚：%g° 俯仰：%g° 偏航：%g°\n", degrees(attitude.getRoll()), degrees(attitude.getPitch()), degrees(attitude.getYaw()));
-		print("已着陆：%d\n", landed);
+		print("着陆状态（1true表示已着陆，0false表示未着陆）：%d\n", landed);
 	} else if (command == "arm") {
 		armed = true;
+		print("无人机已解锁\n");
 	} else if (command == "disarm") {
 		armed = false;
+		print("无人机已上锁\n");
 	} else if (command == "raw") {
 		mode = RAW;
+		print("飞行模式已切换为 手动模式\n");
 	} else if (command == "stab") {
 		mode = STAB;
+		print("飞行模式已切换为 稳定模式\n");
 	} else if (command == "acro") {
 		mode = ACRO;
+		print("飞行模式已切换为 动作模式\n");
 	} else if (command == "auto") {
 		mode = AUTO;
+		print("飞行模式已切换为 自动模式\n");
 	} else if (command == "rc") {
 		print("通道：");
 		for (int i = 0; i < 16; i++) {
@@ -154,9 +177,56 @@ void doCommand(String str, bool echo = false) {
 			controlRoll, controlPitch, controlYaw, controlThrottle, controlMode);
 		print("时间：%.1f\n", controlTime);
 		print("模式：%s\n", getModeName());
-		print("已解锁：%d\n", armed);
+		print("已解锁（1true表示已解锁，0false表示未解锁）：%d\n", armed);
+		print("遥控LED：%s（通道%d，阈值%.0f）\n", getRemoteLEDState() ? "开" : "关", ledChannel, ledThreshold);
 	} else if (command == "pw") {
 		print("电压：%.1f V\n", voltage);
+		print("电流：%.1f A\n", current);
+	} else if (command == "led" && arg0 == "") {
+		print("遥控LED：%s（通道%d，阈值%.0f，引脚%d）\n", getRemoteLEDState() ? "开" : "关", ledChannel, ledThreshold, ledPin);
+	} else if (command == "led" && arg0 == "on") {
+		setRemoteLED(true);
+	} else if (command == "led" && arg0 == "off") {
+		setRemoteLED(false);
+	} else if (command == "althold" && arg0 == "") {
+		print("定高：%s", getAltHoldStatus());
+		if (altHoldEngaged) print("，目标 %.2f m\n", altHoldTarget);
+		else print("\n");
+		print("定高支持：%s\n", altHoldSupported() ? "是（气压计就绪）" : "否（未检测到气压计）");
+	} else if (command == "althold" && arg0 == "on") {
+		engageAltHold(false); // 切换时检查支持情况，不支持则提醒并拒绝
+	} else if (command == "althold" && arg0 == "force") {
+		engageAltHold(true); // 强制切换，跳过支持检查
+	} else if (command == "althold" && arg0 == "off") {
+		disengageAltHold(nullptr);
+	} else if (command == "baro") {
+#if BARO_ENABLED
+		if (arg0 == "reset") {
+			recalibrateBaro();
+		} else {
+			printBaroStatus();
+		}
+#else
+		print("气压计支持未编译（features.h 中 BARO_ENABLED=0）\n");
+#endif
+	} else if (command == "web" && arg0 == "") {
+#if WEB_RC_ENABLED
+		printWebServerStatus();
+#else
+		print("网页遥控器支持未编译（features.h 中 WEB_RC_ENABLED=0）\n");
+#endif
+	} else if (command == "web" && arg0 == "on") {
+#if WEB_RC_ENABLED
+		setWebServer(true);
+#else
+		print("网页遥控器支持未编译（features.h 中 WEB_RC_ENABLED=0）\n");
+#endif
+	} else if (command == "web" && arg0 == "off") {
+#if WEB_RC_ENABLED
+		setWebServer(false);
+#else
+		print("网页遥控器支持未编译（features.h 中 WEB_RC_ENABLED=0）\n");
+#endif
 	} else if (command == "wifi" && arg0 == "") {
 		printWiFiInfo();
 	} else if (command == "wifi") {

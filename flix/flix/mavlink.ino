@@ -8,6 +8,7 @@
 
 extern float controlTime;
 extern float voltage;
+extern float current;
 
 int mavlinkSysId = 1;
 
@@ -53,9 +54,28 @@ void sendMavlink() {
 		uint16_t voltagesExt[] = {0, 0, 0, 0};
 		float remaining = constrain(mapf(voltage, 3.4, 4.2, 0, 1), 0, 1);
 		mavlink_msg_battery_status_pack(mavlinkSysId, MAV_COMP_ID_AUTOPILOT1, &msg, 0, MAV_BATTERY_FUNCTION_ALL,
-			MAV_BATTERY_TYPE_LIPO, INT16_MAX, voltages, -1, -1, -1, remaining * 100, 0, MAV_BATTERY_CHARGE_STATE_OK, voltagesExt, 0, 0);
+			MAV_BATTERY_TYPE_LIPO, INT16_MAX, voltages, valid(current) ? (int16_t)(current * 100) : -1, -1, -1, remaining * 100, 0, MAV_BATTERY_CHARGE_STATE_OK, voltagesExt, 0, 0);
 		sendMessage(&msg);
 	}
+
+	if (telemetrySlow && (valid(voltage) || valid(current))) {
+		// SYS_STATUS：以标准方式回传电压与电流
+		mavlink_msg_sys_status_pack(mavlinkSysId, MAV_COMP_ID_AUTOPILOT1, &msg,
+			0, 0, 0, 0,
+			valid(voltage) ? (uint16_t)(voltage * 1000) : 0,
+			valid(current) ? (int16_t)(current * 100) : 0,
+			-1, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+		sendMessage(&msg);
+	}
+
+#if BARO_ENABLED
+	if (telemetrySlow && isBaroReady()) {
+		// 高度遥测：单调/相对高度用相对值，AMSL 用绝对高度
+		mavlink_msg_altitude_pack(mavlinkSysId, MAV_COMP_ID_AUTOPILOT1, &msg, time,
+			getAltitude(), getAbsoluteAltitude(), getAltitude(), getAltitude(), 0, 0);
+		sendMessage(&msg);
+	}
+#endif
 
 	if (telemetryAttitude) {
 		const float offset[] = {0, 0, 0, 0};

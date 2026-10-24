@@ -8,11 +8,24 @@
 
 extern int channelZero[16], channelMax[16];
 extern int rollChannel, pitchChannel, throttleChannel, yawChannel, armedChannel, modeChannel;
-extern int rcRxPin, voltagePin;
+extern int ledChannel, ledPin;
+extern int rcProtocol, rcRxPin, crsfRxPin, crsfTxPin, crsfBaud;
+extern int voltagePin, currentPin;
 extern int wifiMode, wifiLongRange, wifiBroadcast, udpLocalPort, udpRemotePort, espnowChannel;
 extern float rcLossTimeout, descendTime, disarmTilt;
-extern float voltageScale;
+extern float voltageScale, currentSens, currentOffset, ledThreshold;
+extern float batteryLowV;
+extern float altHoldP, altHoldI, altHoldD, altHoldIntegralLimit, altHoldMaxCorrection, altHoldExitThrottle;
 extern LowPassFilter<float> voltageFilter;
+#if BARO_ENABLED
+extern int baroSdaPin, baroSclPin, baroAddress;
+extern LowPassFilter<float> altitudeFilter;
+#endif
+#if WEB_RC_ENABLED
+extern int webServerOn;
+extern int ctlPriority;
+extern int webSessionTimeout;
+#endif
 
 #include "config.h"
 
@@ -93,7 +106,11 @@ Parameter parameters[] = {
 	{"MOT_PWM_MIN", &pwmMin},
 	{"MOT_PWM_MAX", &pwmMax},
 	// 遥控器
+	{"RC_PROTOCOL", &rcProtocol, setupRC},
 	{"RC_RX_PIN", &rcRxPin, setupRC},
+	{"RC_CRSF_RX", &crsfRxPin, setupRC},
+	{"RC_CRSF_TX", &crsfTxPin, setupRC},
+	{"RC_CRSF_BAUD", &crsfBaud, setupRC},
 	{"RC_ZERO_0", &channelZero[0]},
 	{"RC_ZERO_1", &channelZero[1]},
 	{"RC_ZERO_2", &channelZero[2]},
@@ -115,6 +132,9 @@ Parameter parameters[] = {
 	{"RC_THROTTLE", &throttleChannel},
 	{"RC_YAW", &yawChannel},
 	{"RC_MODE", &modeChannel},
+	{"RC_LED", &ledChannel},
+	{"RC_LED_PIN", &ledPin, setupRC},
+	{"RC_LED_THRESH", &ledThreshold},
 	// WiFi
 	{"WIFI_MODE", &wifiMode},
 	{"WIFI_PORT_LOC", &udpLocalPort},
@@ -134,10 +154,34 @@ Parameter parameters[] = {
 	{"PWR_VOLT_PIN", &voltagePin, setupPower},
 	{"PWR_VOLT_SCALE", &voltageScale},
 	{"PWR_VOLT_LPF_A", &voltageFilter.alpha},
+	{"PWR_CURR_PIN", &currentPin, setupPower},
+	{"PWR_CURR_OFF", &currentOffset},
+	{"PWR_CURR_SENS", &currentSens},
 	// 安全
 	{"SF_RC_LOSS_TIME", &rcLossTimeout},
 	{"SF_DESCEND_TIME", &descendTime},
 	{"SF_DISARM_TILT", &disarmTilt},
+	{"SF_BAT_LOW_V", &batteryLowV},
+	// 定高
+	{"ALT_P", &altHoldP},
+	{"ALT_I", &altHoldI},
+	{"ALT_D", &altHoldD},
+	{"ALT_I_LIM", &altHoldIntegralLimit},
+	{"ALT_MAX_CORR", &altHoldMaxCorrection},
+	{"ALT_EXIT_THR", &altHoldExitThrottle},
+#if BARO_ENABLED
+	// 气压计
+	{"BARO_SDA", &baroSdaPin, setupBaro},
+	{"BARO_SCL", &baroSclPin, setupBaro},
+	{"BARO_ADDR", &baroAddress, setupBaro},
+	{"BARO_LPF_A", &altitudeFilter.alpha},
+#endif
+#if WEB_RC_ENABLED
+	// 网页遥控
+	{"WEB_ENABLED", &webServerOn, applyWebEnabled},
+	{"CTL_PRIORITY", &ctlPriority},
+	{"WEB_TIMEOUT_S", &webSessionTimeout},
+#endif
 };
 
 void setupParameters() {
