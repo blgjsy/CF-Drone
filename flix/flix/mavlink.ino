@@ -3,6 +3,7 @@
 
 // MAVLink通信
 
+#include "features.h"
 #include <MAVLink.h>
 #include "util.h"
 
@@ -71,7 +72,8 @@ void sendMavlink() {
 #if BARO_ENABLED
 	if (telemetrySlow && isBaroReady()) {
 		// 高度遥测：单调/相对高度用相对值，AMSL 用绝对高度
-		mavlink_msg_altitude_pack(mavlinkSysId, MAV_COMP_ID_AUTOPILOT1, &msg, time,
+		// 注意：time_usec 字段单位为微秒
+		mavlink_msg_altitude_pack(mavlinkSysId, MAV_COMP_ID_AUTOPILOT1, &msg, (uint64_t)(t * 1000000.0),
 			getAltitude(), getAbsoluteAltitude(), getAltitude(), getAltitude(), 0, 0);
 		sendMessage(&msg);
 	}
@@ -318,17 +320,33 @@ void mavlinkPrint(const char* str) {
 }
 
 void sendMavlinkPrint() {
-	// 分块发送MAVLink打印数据
+	// 分块发送MAVLink打印数据（按 UTF-8 字符边界切块，避免中文乱码）
 	const char *str = mavlinkPrintBuffer.c_str();
-	for (int i = 0; i < strlen(str); i += MAVLINK_MSG_SERIAL_CONTROL_FIELD_DATA_LEN) {
-		char data[MAVLINK_MSG_SERIAL_CONTROL_FIELD_DATA_LEN + 1];
-		strlcpy(data, str + i, sizeof(data));
+	int total = strlen(str);
+	const int maxLen = MAVLINK_MSG_SERIAL_CONTROL_FIELD_DATA_LEN;
+
+	for (int i = 0; i < total; ) {
+		int len;
+		if (i + maxLen < total) {
+			// 若边界落在 UTF-8 多字节字符中间，向前回退到字符边界
+			int end = i + maxLen;
+			while (end > i && ((unsigned char)str[end] & 0xC0) == 0x80) end--;
+			len = end - i;
+			if (len == 0) len = maxLen; // 单字符超过块长（罕见），强制截断
+		} else {
+			len = total - i;
+		}
+
+		char data[maxLen + 1];
+		memcpy(data, str + i, len);
+		data[len] = '\0';
 		mavlink_message_t msg;
 		mavlink_msg_serial_control_pack(mavlinkSysId, MAV_COMP_ID_AUTOPILOT1, &msg,
 			SERIAL_CONTROL_DEV_SHELL,
-			i + MAVLINK_MSG_SERIAL_CONTROL_FIELD_DATA_LEN < strlen(str) ? SERIAL_CONTROL_FLAG_MULTI : 0, // 还有更多数据块待发送
-			0, 0, strlen(data), (uint8_t *)data, 0, 0);
+			i + len < total ? SERIAL_CONTROL_FLAG_MULTI : 0, // 还有更多数据块待发送
+			0, 0, len, (uint8_t *)data, 0, 0);
 		sendMessage(&msg);
+		i += len;
 	}
 	mavlinkPrintBuffer.clear();
 }

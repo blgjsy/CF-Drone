@@ -6,6 +6,8 @@
 // 或复制到 flix/flix/libraries/）。未安装库时本模块自动降级为"不可用"，
 // 不影响编译，定高命令会给出相应提醒。
 
+#include "features.h"
+
 #if BARO_ENABLED
 
 #include <Wire.h>
@@ -158,6 +160,10 @@ float getBaroTemperature() {
 void recalibrateBaro() {
 	if (!baroDetected) {
 		print("未检测到气压计\n");
+		return;
+	}
+	if (!valid(baroAbsoluteAltitude)) {
+		print("气压计暂无有效读数，无法重新标定\n");
 		return;
 	}
 	baroBaselineAltitude = baroAbsoluteAltitude;

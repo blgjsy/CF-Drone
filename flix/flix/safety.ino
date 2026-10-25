@@ -20,11 +20,13 @@ void failsafe() {
 }
 
 // 遥控器信号丢失保护
+// 依赖统一的 controlTime（实体遥控/网页遥控/MAVLink 都会刷新它）：
+// 任何控制源停止提供数据超过 rcLossTimeout 即触发下降保护。
+// 网页遥控空闲（只发心跳不发摇杆）时 controlTime 不会刷新，因此同样能被本保护覆盖。
+// 气压定高（altHoldEngaged）期间飞控自主维持高度，不依赖操作员持续输入，故跳过。
 void rcLossFailsafe() {
 	if (!armed) return;
-#if WEB_RC_ENABLED
-	if (isUsingWebRC()) return; // 网页遥控连接由 readWebRC 内的超时逻辑负责
-#endif
+	if (altHoldEngaged) return;
 	if (t - controlTime > rcLossTimeout) {
 		descend();
 	}
