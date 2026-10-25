@@ -1,7 +1,4 @@
 build/*
-docs/*
-.github/*
-.vscode/*
 
 *.hex
 *.elf
@@ -11,7 +8,8 @@ tools/dist/
 *.egg-info/
 .core
 .libs
-.vscode/*
+# .vscode/*
+CF-Drone/*
 !.vscode/settings.default.json
 !.vscode/c_cpp_properties.json
 !.vscode/tasks.json
