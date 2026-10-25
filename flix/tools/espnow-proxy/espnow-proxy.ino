@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Oleg Kalachev <okalachev@gmail.com>
 // Repository: https://github.com/okalachev/flix
 
-// Proxy for ESP-NOW connection
+// ESP-NOW连接代理
 
 #include <vector>
 #include <WiFi.h>
@@ -12,16 +12,16 @@
 #include "../../flix/util.h"
 
 const int CHANNEL = 6;
-char key[ESP_NOW_KEY_LEN + 1] = {0}; // with trailing null
+char key[ESP_NOW_KEY_LEN + 1] = {0}; // 带结尾空字符
 
 Preferences storage;
 
 std::vector<ESPNOWSerial *> peers;
 
 void onNewPeer(const esp_now_recv_info_t *info, const uint8_t *data, int len, void *arg) {
-	if (len != 4 || memcmp(data, "flix", 4) != 0) return; // check if discovery message
+	if (len != 4 || memcmp(data, "flix", 4) != 0) return; // 检查是否为发现消息
 
-	Serial.printf("New peer: " MACSTR "\n", MAC2STR(info->src_addr));
+	Serial.printf("新对等设备：" MACSTR "\n", MAC2STR(info->src_addr));
 	ESPNOWSerial *link = new ESPNOWSerial(info->src_addr, CHANNEL, WIFI_IF_AP);
 	link->begin();
 	link->setKey((const uint8_t *)key);
@@ -44,9 +44,9 @@ void setup() {
 	}
 	strcpy(key, storage.getString("key").c_str());
 
-	// Discover the first peer
+	// 发现第一个对等设备
 	while (peers.empty()) {
-		Serial.printf("espnow %s %s\n", WiFi.softAPmacAddress().c_str(), key);
+		Serial.printf("espnow %s %s\n", WiFi.softAPmacAddress().c_str(), key); // 该命令可直接复制到无人机控制台使用
 		delay(500);
 	}
 }
@@ -61,7 +61,7 @@ void generateRandomKey() {
 void loop() {
 	uint8_t buf[5000];
 
-	// Send from Serial to ESP-NOW
+	// 从串口发送到ESP-NOW
 	while (Serial.available() > 0) {
 		int b = Serial.read();
 		if (b < 0) {
@@ -78,7 +78,7 @@ void loop() {
 		}
 	}
 
-	// Send from ESP-NOW to Serial
+	// 从ESP-NOW发送到串口
 	for (ESPNOWSerial *link : peers) {
 		int len = link->read(buf, sizeof(buf));
 		if (len > 0) {

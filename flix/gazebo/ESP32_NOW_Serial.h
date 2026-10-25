@@ -1,4 +1,4 @@
-// Dummy file for the simulator
+// 仿真用的空实现文件
 
 class ESP_NOW_Peer {
 protected:

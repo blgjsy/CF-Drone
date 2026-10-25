@@ -1,7 +1,7 @@
 // Copyright (c) 2023 Oleg Kalachev <okalachev@gmail.com>
 // Repository: https://github.com/okalachev/flix
 
-// SBUS library mock to make it possible to compile simulator with rc.ino
+// SBUS库模拟桩，使模拟器能够与rc.ino一起编译
 
 #include "joystick.h"
 
@@ -19,7 +19,7 @@ public:
 		int16_t ch[16];
 		joystickGet(ch);
 		for (int i = 0; i < 16; i++) {
-			channels[i] = map(ch[i], -32768, 32767, 1000, 2000); // convert to pulse width style
+			channels[i] = map(ch[i], -32768, 32767, 1000, 2000); // 转换为脉宽格式
 		}
 	};
 };

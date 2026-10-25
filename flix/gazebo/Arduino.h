@@ -41,7 +41,7 @@ size_t strlcpy(char* dst, const char* src, size_t len) {
 
 class __FlashStringHelper;
 
-// Arduino String partial implementation
+// Arduino String 的部分实现
 // https://www.arduino.cc/reference/en/language/variables/data-types/stringobject/
 class String: public std::string {
 public:
@@ -127,9 +127,9 @@ public:
 class HardwareSerial: public Print {
 public:
 	void begin(unsigned long baud) {
-		// server is running in background by default, so it doesn't have access to stdin
+		// 服务器默认在后台运行，因此无法访问标准输入
 		// https://github.com/gazebosim/gazebo-classic/blob/d45feeb51f773e63960616880b0544770b8d1ad7/gazebo/gazebo_main.cc#L216
-		// set foreground process group to current process group to allow reading from stdin
+		// 将前台进程组设置为当前进程组，以允许从标准输入读取
 		// https://stackoverflow.com/questions/58918188/why-is-stdin-not-propagated-to-child-process-of-different-process-group
 		signal(SIGTTOU, SIG_IGN);
 		tcsetpgrp(STDIN_FILENO, getpgrp());
@@ -137,7 +137,7 @@ public:
 	};
 
 	int available() {
-		// to implement for Windows, see https://stackoverflow.com/a/71992965/6850197
+		// 如需在Windows上实现，参见 https://stackoverflow.com/a/71992965/6850197
 		if (!isatty(STDIN_FILENO)) return 0;
 		struct pollfd pfd = { .fd = STDIN_FILENO, .events = POLLIN };
 		return poll(&pfd, 1, 0) > 0 && (pfd.revents & POLLIN);
@@ -146,7 +146,7 @@ public:
 	int read() {
 		if (available()) {
 			char c;
-			size_t res = ::read(STDIN_FILENO, &c, 1); // use raw read to avoid C++ buffering
+			size_t res = ::read(STDIN_FILENO, &c, 1); // 使用原始读取以避免C++缓冲
 			// https://stackoverflow.com/questions/45238997/does-getchar-function-has-its-own-buffer-to-store-remaining-input
 			return c;
 		}

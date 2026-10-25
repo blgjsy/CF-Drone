@@ -1,7 +1,7 @@
 // Copyright (c) 2023 Oleg Kalachev <okalachev@gmail.com>
 // Repository: https://github.com/okalachev/flix
 
-// Tool for conversion CSV log file to ULog format
+// 将CSV日志文件转换为ULog格式的工具
 
 #include <ulog_cpp/simple_writer.hpp>
 #include <rapidcsv.h>
@@ -20,22 +20,22 @@ struct Data {
 int main(int argc, char** argv)
 {
 	if (argc < 2) {
-		printf("Usage: %s file.csv [file.ulg]\n", argv[0]);
+		printf("用法：%s file.csv [file.ulg]\n", argv[0]);
 		return -1;
 	}
 
-	// check input file exists
+	// 检查输入文件是否存在
 	if (!std::filesystem::exists(argv[1])) {
-		printf("Input file \"%s\" does not exist\n", argv[1]);
+		printf("输入文件 \"%s\" 不存在\n", argv[1]);
 		return -1;
 	}
 
-	// open csv file
+	// 打开CSV文件
 	rapidcsv::Document csv(argv[1]);
 	auto columns = csv.GetColumnNames();
 
 
-	// open ulog file
+	// 打开ULog文件
 	string ulog_file;
 	if (argc < 3) {
 		ulog_file = std::filesystem::path(argv[1]).replace_extension(".ulg").string();
@@ -47,11 +47,11 @@ int main(int argc, char** argv)
 
 	vector<ulog_cpp::Field> fields;
 	fields.push_back(ulog_cpp::Field("uint64_t", "timestamp"));
-	columns.erase(columns.begin()); // remove timestamp column
+	columns.erase(columns.begin()); // 移除时间戳列
 	for (auto& column : columns) {
-		// Valid field name for ULog: [a-z0-9_]+
-		std::replace(column.begin(), column.end(), '.', '_'); // replace dots with underscores
-		std::transform(column.begin(), column.end(), column.begin(), [](unsigned char c) { return std::tolower(c); }); // lowercase column name
+		// ULog的有效字段名：[a-z0-9_]+
+		std::replace(column.begin(), column.end(), '.', '_'); // 将点替换为下划线
+		std::transform(column.begin(), column.end(), column.begin(), [](unsigned char c) { return std::tolower(c); }); // 将列名转换为小写
 		fields.push_back(ulog_cpp::Field("float", column));
 	}
 

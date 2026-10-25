@@ -1,7 +1,7 @@
 // Copyright (c) 2023 Oleg Kalachev <okalachev@gmail.com>
 // Repository: https://github.com/okalachev/flix
 
-// Joystick support for simulation
+// 仿真中的摇杆支持
 
 #include <SDL2/SDL.h>
 #include <gazebo/gazebo.hh>
@@ -18,9 +18,9 @@ bool joystickInit() {
 	joystick = SDL_JoystickOpen(0);
 	if (joystick != NULL) {
 		joystickInitialized = true;
-		gzmsg << "Joystick initialized: " << SDL_JoystickNameForIndex(0) << std::endl;
+		gzmsg << "摇杆已初始化：" << SDL_JoystickNameForIndex(0) << std::endl;
 	} else if (!warnShown) {
-		gzwarn << "Joystick not found, begin waiting for joystick..." << std::endl;
+		gzwarn << "未找到摇杆，开始等待摇杆..." << std::endl;
 		warnShown = true;
 	}
 	return joystickInitialized;

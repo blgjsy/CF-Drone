@@ -1,19 +1,19 @@
 // Copyright (c) 2026 Oleg Kalachev <okalachev@gmail.com>
 // Repository: https://github.com/okalachev/flix
 
-// Parameter defaults
+// 参数默认值
 
 #pragma once
 
 void setDefaults() {
-	// Set defaults here
+	// 在此处设置默认值
 
 	#if defined(CONFIG_IDF_TARGET_ESP32S3) || defined(CONFIG_IDF_TARGET_ESP32C3)
 		pwmFrequency = 38000;
 	#endif
 
 	#ifdef CONFIG_IDF_TARGET_ESP32
-		// classic esp32 configuration
+		// 经典 ESP32 配置
 		motorPins[MOT_RL] = 12;
 		motorPins[MOT_RR] = 13;
 		motorPins[MOT_FR] = 14;

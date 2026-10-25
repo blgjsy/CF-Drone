@@ -1,7 +1,7 @@
 // Copyright (c) 2023 Oleg Kalachev <okalachev@gmail.com>
 // Repository: https://github.com/okalachev/flix
 
-// Wi-Fi and ESP-NOW communication
+// Wi-Fi 和 ESP-NOW 通信
 
 #include <WiFi.h>
 #include <WiFiAP.h>
@@ -11,13 +11,13 @@
 #include <Preferences.h>
 #include "util.h"
 
-extern Preferences storage; // use the main preferences storage
+extern Preferences storage; // 使用主参数存储
 
 const int W_DISABLED = 0, W_AP = 1, W_STA = 2, W_ESPNOW = 3;
 int wifiMode = W_AP;
 
 int wifiLongRange = 0;
-int wifiBroadcast = 0; // 0 - broadcast until connected, 1 - always broadcast
+int wifiBroadcast = 0; // 0 - 连接前一直广播，1 - 始终广播
 int udpLocalPort = 14550;
 int udpRemotePort = 14550;
 IPAddress udpRemoteIP = "255.255.255.255";
@@ -28,7 +28,7 @@ ESPNOWSerial espnowBroadcast(ESP_NOW.BROADCAST_ADDR, 0, WIFI_IF_AP);
 int espnowChannel = 6;
 
 void setupWiFi() {
-	print("Setup Wi-Fi\n");
+	print("正在初始化Wi-Fi\n");
 	WiFi.enableLongRange(wifiLongRange);
 
 	if (wifiMode == W_AP) {
@@ -51,7 +51,7 @@ void setupWiFi() {
 		espnowBroadcast.begin();
 	}
 
-	WiFi.setSleep(false); // disable power save
+	WiFi.setSleep(false); // 禁用省电模式
 }
 
 void sendWiFi(const uint8_t *buf, int len) {
@@ -59,13 +59,13 @@ void sendWiFi(const uint8_t *buf, int len) {
 		espnow.write(buf, len);
 
 		static Rate discovery(2);
-		if (espnow.isEncrypted() && discovery) espnowBroadcast.write((const uint8_t *)"flix", 4); // broadcast message to help finding this device
+		if (espnow.isEncrypted() && discovery) espnowBroadcast.write((const uint8_t *)"flix", 4); // 广播消息以帮助发现此设备
 		return;
 	}
 
 	if (WiFi.softAPgetStationNum() == 0 && !WiFi.isConnected()) return;
 
-	bool broadcast = wifiBroadcast || !(t - mavlinkTime < 5); // broadcast if lost connection
+	bool broadcast = wifiBroadcast || !(t - mavlinkTime < 5); // 失去连接时广播
 	udp.beginPacket(broadcast ? IPAddress(255, 255, 255, 255) : udpRemoteIP, udpRemotePort);
 	udp.write(buf, len);
 	udp.endPacket();
@@ -85,37 +85,37 @@ int receiveWiFi(uint8_t *buf, int len) {
 
 void printWiFiInfo() {
 	if (espnow) {
-		print("Mode: ESP-NOW\n");
-		print("ESP-NOW version: %d\n", ESP_NOW.getVersion());
-		print("Max packet size: %d\n", ESP_NOW.getMaxDataLen());
-		print("MAC: %s\n", WiFi.softAPmacAddress().c_str());
-		print("Peer MAC: %s\n", MacAddress(espnow.addr()).toString().c_str());
-		print("Encrypted: %d\n", espnow.isEncrypted());
-		print("Channel: %d\n", espnow.getChannel());
-		print("Lost packets: %d\n", espnow.lost);
+		print("模式：ESP-NOW\n");
+		print("ESP-NOW版本：%d\n", ESP_NOW.getVersion());
+		print("最大数据包大小：%d\n", ESP_NOW.getMaxDataLen());
+		print("MAC地址：%s\n", WiFi.softAPmacAddress().c_str());
+		print("对等设备MAC：%s\n", MacAddress(espnow.addr()).toString().c_str());
+		print("加密：%d\n", espnow.isEncrypted());
+		print("信道：%d\n", espnow.getChannel());
+		print("丢失的数据包：%d\n", espnow.lost);
 	} else if (WiFi.getMode() == WIFI_MODE_AP) {
-		print("Mode: Access Point (AP)\n");
-		print("MAC: %s\n", WiFi.softAPmacAddress().c_str());
-		print("SSID: %s\n", WiFi.softAPSSID().c_str());
-		print("Password: ***\n");
-		print("Channel: %d\n", WiFi.channel());
-		print("Clients: %d\n", WiFi.softAPgetStationNum());
-		print("IP: %s\n", WiFi.softAPIP().toString().c_str());
-		print("Remote IP: %s\n", udpRemoteIP.toString().c_str());
+		print("模式：接入点 (AP)\n");
+		print("MAC地址：%s\n", WiFi.softAPmacAddress().c_str());
+		print("SSID：%s\n", WiFi.softAPSSID().c_str());
+		print("密码：***\n");
+		print("信道：%d\n", WiFi.channel());
+		print("客户端数：%d\n", WiFi.softAPgetStationNum());
+		print("IP地址：%s\n", WiFi.softAPIP().toString().c_str());
+		print("远端IP：%s\n", udpRemoteIP.toString().c_str());
 	} else if (WiFi.getMode() == WIFI_MODE_STA) {
-		print("Mode: Client (STA)\n");
-		print("Connected: %d\n", WiFi.isConnected());
-		print("MAC: %s\n", WiFi.macAddress().c_str());
-		print("SSID: %s\n", WiFi.SSID().c_str());
-		print("Password: ***\n");
-		print("Channel: %d\n", WiFi.channel());
-		print("RSSI: %d dBm\n", WiFi.RSSI());
-		print("IP: %s\n", WiFi.localIP().toString().c_str());
-		print("Remote IP: %s\n", udpRemoteIP.toString().c_str());
+		print("模式：客户端 (STA)\n");
+		print("已连接：%d\n", WiFi.isConnected());
+		print("MAC地址：%s\n", WiFi.macAddress().c_str());
+		print("SSID：%s\n", WiFi.SSID().c_str());
+		print("密码：***\n");
+		print("信道：%d\n", WiFi.channel());
+		print("信号强度：%d dBm\n", WiFi.RSSI());
+		print("IP地址：%s\n", WiFi.localIP().toString().c_str());
+		print("远端IP：%s\n", udpRemoteIP.toString().c_str());
 	} else {
-		print("Mode: Disabled\n");
+		print("模式：已禁用\n");
 	}
-	print("MAVLink connected: %d\n", valid(mavlinkTime));
+	print("MAVLink已连接：%d\n", valid(mavlinkTime));
 }
 
 void configWiFi(int mode, const char *first, const char *second) {
@@ -130,10 +130,10 @@ void configWiFi(int mode, const char *first, const char *second) {
 		storage.putString("ESPNOW_PEER_MAC", first);
 		storage.putString("ESPNOW_PEER_KEY", strlen(second) == ESP_NOW_KEY_LEN ? second : "");
 	} else {
-		print("Invalid configuration\n");
+		print("无效配置\n");
 		return;
 	}
-	print("✓ Reboot to apply new settings\n");
+	print("✓ 重启以应用新设置\n");
 }
 
 void setWiFiMode(const String& mode) {
@@ -146,9 +146,9 @@ void setWiFiMode(const String& mode) {
 	} else if (mode == "off") {
 		wifiMode = W_DISABLED;
 	} else {
-		print("Invalid Wi-Fi mode\n");
+		print("无效的Wi-Fi模式\n");
 		return;
 	}
-	static const char *modes[] = {"Disabled", "Access Point (AP)", "Client (STA)", "ESP-NOW"};
-	print("✓ Wi-Fi mode set to %s, reboot to apply\n", modes[wifiMode]);
+	static const char *modes[] = {"已禁用", "接入点 (AP)", "客户端 (STA)", "ESP-NOW"};
+	print("✓ Wi-Fi模式已设置为 %s，重启后生效\n", modes[wifiMode]);
 }
