@@ -3,6 +3,7 @@
 
 // 内存中的日志记录
 
+#include "features.h"
 #include "vector.h"
 #include "util.h"
 

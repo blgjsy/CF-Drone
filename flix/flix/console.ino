@@ -3,6 +3,7 @@
 
 // 命令行接口的实现(把命令行界面做出来)
 
+#include "features.h"
 #include "pid.h"
 #include "vector.h"
 #include "util.h"
@@ -87,7 +88,7 @@ void setupConsole() {
 }
 
 void print(const char* format, ...) {
-	char buf[3000];
+	static char buf[6000]; // 静态缓冲，容纳参数列表等较长输出，且不占用控制循环栈
 	va_list args;
 	va_start(args, format);
 	vsnprintf(buf, sizeof(buf), format, args);
@@ -270,7 +271,7 @@ void doCommand(String str, bool echo = false) {
 		uxTaskGetSystemState(systemState, taskCount, &totalRunTime);
 		for (int i = 0; i < taskCount; i++) {
 			String core = systemState[i].xCoreID == tskNO_AFFINITY ? "*" : String(systemState[i].xCoreID);
-			int cpuPercentage = systemState[i].ulRunTimeCounter / (totalRunTime / 100);
+			int cpuPercentage = totalRunTime > 0 ? systemState[i].ulRunTimeCounter / (totalRunTime / 100) : 0; // 极短运行时间下避免除零
 			print("%-5d%-20s%-7d%-6d%-6s%d\n",systemState[i].xTaskNumber, systemState[i].pcTaskName,
 				systemState[i].usStackHighWaterMark, systemState[i].uxCurrentPriority, core.c_str(), cpuPercentage);
 		}

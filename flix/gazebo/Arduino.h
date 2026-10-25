@@ -187,6 +187,16 @@ uint32_t ledcChangeFrequency(uint8_t pin, uint32_t freq, uint8_t resolution) { r
 int8_t digitalPinToAnalogChannel(uint8_t pin) { return -1; }
 uint32_t analogReadMilliVolts(uint8_t pin) { return 0; }
 
+// 数字引脚 API（模拟中为 no-op，用于遥控 LED 等外设）
+#define HIGH 0x1
+#define LOW  0x0
+#define OUTPUT 0x03
+#define INPUT 0x01
+#define INPUT_PULLUP 0x05
+void pinMode(uint8_t pin, uint8_t mode) {}
+void digitalWrite(uint8_t pin, uint8_t val) {}
+int digitalRead(uint8_t pin) { return 0; }
+
 unsigned long __micros;
 unsigned long __resetTime = 0;
 

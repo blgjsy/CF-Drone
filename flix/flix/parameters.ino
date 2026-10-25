@@ -3,6 +3,7 @@
 
 // 参数在闪存中的存储
 
+#include "features.h"
 #include <Preferences.h>
 #include "util.h"
 

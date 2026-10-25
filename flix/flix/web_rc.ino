@@ -4,6 +4,8 @@
 // 网页遥控器服务端（手机浏览器通过 WiFi 热点控制无人机）
 // 支持：多设备互斥（先打开者优先）、会话超时、实体/网页控制优先级
 
+#include "features.h"
+
 #if WEB_RC_ENABLED
 
 #include <WebServer.h>
@@ -249,15 +251,16 @@ bool webHandleJSON(String& body) {
 bool webSessionUpdate() {
 	bool isOwner = false;
 
+	// 无 sid 的畸形请求不参与会话，避免把会话转移到空 sid
+	if (lastSid[0] == '\0') return false;
+
 	if (webSessionId[0] == '\0') {
 		// 无会话：当前设备认领（先到先得）
-		if (lastSid[0]) {
-			strncpy(webSessionId, lastSid, 16);
-			webSessionId[16] = '\0';
-			webSessionLastPacket = webSessionLastActivity = millis();
-			isOwner = true;
-			print("网页会话建立：%s\n", webSessionId);
-		}
+		strncpy(webSessionId, lastSid, 16);
+		webSessionId[16] = '\0';
+		webSessionLastPacket = webSessionLastActivity = millis();
+		isOwner = true;
+		print("网页会话建立：%s\n", webSessionId);
 	} else if (strcmp(webSessionId, lastSid) == 0) {
 		// 拥有者本人：续期
 		isOwner = true;
@@ -349,6 +352,25 @@ void handleWebRCRequest() {
 	webRCServer.send(200, "application/json", resp);
 }
 
+// 网页控制台禁止执行的命令（阻塞控制循环或具有破坏性）
+bool webCommandBlocked(const String& cmd) {
+	String token = cmd;
+	int sp = token.indexOf(' ');
+	if (sp >= 0) token = token.substring(0, sp);
+	token.toLowerCase();
+	static const char* blocked[] = {
+		"ca",      // 加速度计校准（阻塞约 48 秒）
+		"cr",      // 遥控器校准（含多次 3 秒暂停）
+		"reboot",  // 重启
+		"preset",  // 重置参数并重启
+		"mfr", "mfl", "mrr", "mrl" // 电机测试（需卸桨）
+	};
+	for (const char* b : blocked) {
+		if (token == b) return true;
+	}
+	return false;
+}
+
 // ==================== 初始化 ====================
 
 void setupWebRC() {
@@ -433,6 +455,11 @@ void setupWebRC() {
 			webRCServer.send(400, "application/json", "{\"ok\":0,\"e\":\"empty command\"}");
 			return;
 		}
+		if (webCommandBlocked(cmd)) {
+			webLog("! 该命令已禁用（阻塞或危险）\n");
+			webRCServer.send(403, "application/json", "{\"ok\":0,\"e\":\"blocked command\"}");
+			return;
+		}
 		char buf[WEB_CONSOLE_LINE_LEN];
 		snprintf(buf, sizeof(buf), "> %s", cmd.c_str());
 		webLog(buf);
@@ -476,6 +503,7 @@ void setWebServer(bool on) {
 		webRCUpdated = false;
 		webRCLastUpdate = 0;
 		webRCEnabled = useWebRC = false;
+		webRCButtons = 0; // 清除残留按钮
 		webSessionId[0] = '\0'; // 关闭网页时同时清空会话
 		print("网页遥控器已关闭\n");
 		if (armed && wasUsing) {
@@ -509,17 +537,23 @@ void readWebRC() {
 
 	webRCServer.handleClient();
 
-	if (isWebRCEnabled()) {
+	bool connected = isWebRCEnabled();     // 连接是否存活（5s 内有心跳/摇杆/按钮）
+	bool controlling = connected && !webPhysicalOverride(); // 网页是否真的在控制
+
+	if (controlling) {
 		webRCEnabled = useWebRC = true;
-	} else if (webRCEnabled) {
-		// 从活跃变为超时：安全处理
-		webRCEnabled = useWebRC = false;
-		print("⚠️ 网页遥控连接超时，已上锁\n");
-		armed = false;
-		controlThrottle = 0;
-		disengageAltHold("网页遥控超时");
 	} else {
-		webRCEnabled = useWebRC = false;
+		bool wasControlling = useWebRC;
+		webRCEnabled = connected; // 连接可能仍在，只是被实体遥控接管
+		useWebRC = false;
+		if (wasControlling && !connected) {
+			// 网页确实在控制时连接丢失 → 才上锁
+			webRCButtons = 0; // 清除残留按钮，避免重连后误触发
+			print("⚠️ 网页遥控连接超时，已上锁\n");
+			armed = false;
+			controlThrottle = 0;
+			disengageAltHold("网页遥控超时");
+		}
 	}
 }
 

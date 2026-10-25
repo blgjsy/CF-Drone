@@ -1,5 +1,7 @@
 // 网页遥控器客户端界面（极简深色风格，支持浅色主题）
 
+#include "features.h"
+
 #if WEB_RC_ENABLED
 
 const char webRCIndexHtml[] PROGMEM = R"rawliteral(
@@ -147,8 +149,9 @@ let ownerOk=true, phyActive=false, prio=0; // 会话拥有权 / 实体遥控接�
 const MODES=["手动","特技","自稳","自动"];
 let left={x:0,y:0,rx:0,ry:-100}, right={x:0,y:0,rx:0,ry:0}; // ry=-100: 油门杆默认在底部
 let lastSent={th:-999,r:-999,p:-999,y:-999};
+let sticksActive=false, lastStickSentAt=0; // 摇杆是否被按住 + 上次发杆时间（用于按住保活）
 let latHist=new Array(10).fill(0), latIdx=0;
-const THRESH=0.5, EXPO=0.25;
+const THRESH=0.5, EXPO=0.25, STICK_KEEPALIVE_MS=500;
 
 /* 会话 ID（同标签页内持久，刷新保持同一身份） */
 const SID=(function(){let s=sessionStorage.getItem('flix_sid');
@@ -177,6 +180,7 @@ function bindStick(side,id){
   };
   const up=()=>{
     el.classList.remove("active");
+    sticksActive=false;
     const targetY=(side==="l"&&!althold)?-100:0;
     const r=el.getBoundingClientRect(),rad=r.width/2-10,dy=-targetY/100*rad;
     knob.style.transition="transform .18s ease-out";
@@ -185,7 +189,7 @@ function bindStick(side,id){
     if(side==="l")left={x:0,y:0,rx:0,ry:targetY}; else right={x:0,y:0,rx:0,ry:0};
     sendSticks(true);
   };
-  el.addEventListener("pointerdown",e=>{el.setPointerCapture(e.pointerId);el.classList.add("active");move(e);});
+  el.addEventListener("pointerdown",e=>{el.setPointerCapture(e.pointerId);el.classList.add("active");sticksActive=true;move(e);});
   el.addEventListener("pointermove",e=>{if(e.buttons)move(e);});
   el.addEventListener("pointerup",up); el.addEventListener("pointercancel",up);
   el.addEventListener("touchstart",e=>e.preventDefault());
@@ -207,7 +211,12 @@ function sendSticks(force){
   if(!ownerOk)return;
   const v={th:left.ry, r:curve(right.rx/100)*100, p:curve(right.ry/100)*100, y:curve(left.rx/100)*100};
   const changed=Math.abs(v.th-lastSent.th)>THRESH||Math.abs(v.r-lastSent.r)>THRESH||Math.abs(v.p-lastSent.p)>THRESH||Math.abs(v.y-lastSent.y)>THRESH;
-  if(changed||force){post("/web_rc",{t:1,th:Math.round(v.th),r:Math.round(v.r),p:Math.round(v.p),y:Math.round(v.y),ts:performance.now()},applyResp);lastSent=v;}
+  // 按住不动时每 500ms 保活一次，保证飞控端 controlTime 新鲜，避免误触发 rcLoss
+  const keepAlive=sticksActive&&(performance.now()-lastStickSentAt>STICK_KEEPALIVE_MS);
+  if(changed||force||keepAlive){
+    post("/web_rc",{t:1,th:Math.round(v.th),r:Math.round(v.r),p:Math.round(v.p),y:Math.round(v.y),ts:performance.now()},applyResp);
+    lastSent=v;lastStickSentAt=performance.now();
+  }
 }
 function sendBtn(i,s){if(!ownerOk)return;post("/web_rc",{t:2,b:i,s:s?1:0,ts:performance.now()},applyResp);}
 function applyResp(j){

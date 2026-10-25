@@ -4,7 +4,9 @@
 // 遥控接收机相关操作（支持 SBUS 与 ELRS CRSF 两种协议）
 
 #include <SBUS.h>
+#if defined(ARDUINO_ARCH_ESP32)
 #include <HardwareSerial.h>
+#endif
 #include "util.h"
 
 // 遥控协议
@@ -14,11 +16,13 @@ int rcProtocol = RC_PROTO_SBUS; // 0 = SBUS，1 = ELRS CRSF
 SBUS rc(Serial1);
 int rcRxPin = -1; // SBUS 接收引脚，-1 表示禁用
 
-// ELRS CRSF 接收机配置（UART2）
+// ELRS CRSF 接收机配置（UART2，仅 ESP32 平台）
 int crsfRxPin = 17;
 int crsfTxPin = 16;
 int crsfBaud = 420000;
+#if defined(ARDUINO_ARCH_ESP32)
 HardwareSerial CRSFSerial(2);
+#endif
 
 uint16_t channels[16]; // 原始遥控通道（μs）
 int channelZero[16]; // 校准零值（中位）
@@ -32,7 +36,7 @@ float controlMode = NAN;
 float controlTime = NAN; // 上次控制更新的时间
 
 int rollChannel = -1, pitchChannel = -1, throttleChannel = -1, yawChannel = -1, modeChannel = -1; // 通道映射
-int ledChannel = 5; // 遥控 LED 通道映射（ELRS CRSF 下默认为 CH5）
+int ledChannel = 5; // 遥控 LED 通道映射（默认 CH5）
 
 // 遥控 LED 控制（由遥控器通道控制的外部 LED）
 int ledPin = -1; // 遥控 LED 引脚，-1 表示禁用
@@ -42,12 +46,19 @@ bool remoteLedState = false; // 当前 LED 状态
 // ---- ELRS CRSF 协议 ----
 #define CRSF_SYNC_BYTE 0xC8
 #define CRSF_TYPE_CHANNELS 0x16
+#define CRSF_TYPE_LINK_STATISTICS 0x14
 
 uint8_t crsfBuffer[64];
 int crsfBufferIndex = 0;
 
+#if defined(ARDUINO_ARCH_ESP32)
+bool crsfLinkActive = true;    // ELRS 链路是否有效（链接质量 > 0）
+uint8_t crsfLinkQuality = 100; // 上行链接质量 0-100
+#endif
+
 void setupRC() {
 	setupRemoteLED();
+#if defined(ARDUINO_ARCH_ESP32)
 	if (rcProtocol == RC_PROTO_CRSF) {
 		print("正在初始化遥控器（ELRS CRSF）\n");
 		// ELRS 通常使用 420000 波特率
@@ -60,6 +71,7 @@ void setupRC() {
 		if (modeChannel < 0) modeChannel = 4;
 		return;
 	}
+#endif
 	if (rcRxPin < 0) return;
 	print("正在初始化遥控器（SBUS）\n");
 	rc.begin(rcRxPin);
@@ -73,18 +85,35 @@ void setupRemoteLED() {
 }
 
 bool readRC() {
+#if defined(ARDUINO_ARCH_ESP32)
 	if (rcProtocol == RC_PROTO_CRSF) {
 		return readCRSF();
 	}
+#endif
 	if (rcRxPin < 0) return false;
 	if (!rc.read()) return false;
 
 	rc.getChannels(channels);
 	normalizeRC();
+	controlRemoteLED(); // SBUS 也响应遥控 LED 通道
 	controlTime = t;
 	rcFresh = true;
 	rcTime = t;
 	return true;
+}
+
+#if defined(ARDUINO_ARCH_ESP32)
+
+// CRC-8-DVB-S2（CRSF 协议使用，多项式 0xD5，初值 0x00）
+uint8_t crsfCRC8(const uint8_t *data, int len) {
+	uint8_t crc = 0;
+	for (int i = 0; i < len; i++) {
+		crc ^= data[i];
+		for (int b = 0; b < 8; b++) {
+			crc = (crc & 0x80) ? (uint8_t)((crc << 1) ^ 0xD5) : (uint8_t)(crc << 1);
+		}
+	}
+	return crc;
 }
 
 // 读取并解析 ELRS CRSF 数据帧
@@ -104,12 +133,8 @@ bool readCRSF() {
 		if (crsfBufferIndex >= 2) {
 			int frameLength = crsfBuffer[1];
 			if (crsfBufferIndex >= frameLength + 2) {
-				if (parseCRSF(crsfBuffer, frameLength + 2)) {
-					normalizeRC();
-					controlRemoteLED();
-					controlTime = t;
-					rcFresh = true;
-					rcTime = t;
+				if (crsfFrameValid(crsfBuffer, frameLength + 2)) {
+					handleCRSFFrame(crsfBuffer, frameLength + 2);
 					updated = true;
 				}
 				crsfBufferIndex = 0;
@@ -124,20 +149,36 @@ bool readCRSF() {
 	return updated;
 }
 
-bool parseCRSF(uint8_t *buffer, int length) {
-	if (length < 4) return false;
+// 校验 CRSF 帧：长度字段一致性 + CRC-8 校验
+bool crsfFrameValid(uint8_t *buffer, int length) {
+	if (length < 5) return false;
+	if (buffer[1] + 2 != length) return false; // 长度字段 = type + payload + crc
+	uint8_t crc = crsfCRC8(buffer + 2, length - 3); // 覆盖 type..payload
+	return crc == buffer[length - 1];
+}
 
-	uint8_t frameType = buffer[2];
-	if (frameType != CRSF_TYPE_CHANNELS) {
-		return false; // 只关心通道数据
+// 处理完整 CRSF 帧（已通过 CRC 校验）
+void handleCRSFFrame(uint8_t *buffer, int length) {
+	uint8_t type = buffer[2];
+
+	if (type == CRSF_TYPE_CHANNELS && length == 26) {
+		decodeCRSFChannels(buffer + 3);
+		normalizeRC();
+		controlRemoteLED();
+		if (crsfLinkActive) {
+			controlTime = t;
+			rcFresh = true;
+			rcTime = t;
+		} else {
+			// 链路丢失：不刷新控制时间，让 rcLossFailsafe 生效
+			// （覆盖接收机配置为"失效保护值"仍持续发帧的情况）
+			rcFresh = false;
+		}
+	} else if (type == CRSF_TYPE_LINK_STATISTICS && length >= 6) {
+		// payload: [0]rssi1 [1]rssi2 [2]uplink_Link_quality ...
+		crsfLinkQuality = buffer[5];
+		crsfLinkActive = crsfLinkQuality > 0;
 	}
-
-	// 有效载荷从第 3 字节开始，去掉同步字节、长度、类型、CRC 共 4 字节
-	int payloadLength = length - 4;
-	if (payloadLength != 22) return false; // 通道帧应包含 22 字节有效载荷
-
-	decodeCRSFChannels(buffer + 3);
-	return true;
 }
 
 // 从 22 字节解码 16 个通道（每通道 11 位）
@@ -166,7 +207,10 @@ void decodeCRSFChannels(uint8_t *payload) {
 	}
 }
 
+#endif // ARDUINO_ARCH_ESP32
+
 void normalizeRC() {
+#if defined(ARDUINO_ARCH_ESP32)
 	if (rcProtocol == RC_PROTO_CRSF) {
 		// CRSF 通道值已标准化为 1000-2000 μs（中位 1500），无需逐通道校准
 		controlRoll = rollChannel < 0 ? 0 : mapf(channels[rollChannel], 1000, 2000, -1, 1);
@@ -176,6 +220,7 @@ void normalizeRC() {
 		controlMode = modeChannel < 0 ? NAN : mapf(channels[modeChannel], 1000, 2000, 0, 1); // 模式控制未映射时无效
 		return;
 	}
+#endif
 
 	// SBUS 使用校准值（中位为 0，最大为 1）
 	float controls[16];
@@ -190,7 +235,7 @@ void normalizeRC() {
 	controlMode = modeChannel < 0 ? NAN : controls[modeChannel]; // 模式控制未映射时无效
 }
 
-// 根据遥控器通道控制外部 LED
+// 根据遥控器通道控制外部 LED（SBUS 与 CRSF 共用）
 void controlRemoteLED() {
 	if (ledPin < 0 || ledChannel < 0) return;
 	bool on = channels[ledChannel] > ledThreshold;
@@ -222,6 +267,7 @@ bool isPhysicalRCActive() {
 }
 
 void calibrateRC() {
+#if defined(ARDUINO_ARCH_ESP32)
 	if (rcProtocol == RC_PROTO_CRSF) {
 		// CRSF 通道值已标准化，只需展示当前通道信息
 		print("=== ELRS CRSF 通道检查 ===\n");
@@ -237,6 +283,7 @@ void calibrateRC() {
 		print("提示：CRSF 通道值已标准化，无需拨杆校准。若通道映射不对，请用 p RC_ROLL 等参数修改。\n");
 		return;
 	}
+#endif
 
 	if (rcRxPin < 0) {
 		print("RC_RX_PIN = %d，请设置遥控接收引脚！\n", rcRxPin);

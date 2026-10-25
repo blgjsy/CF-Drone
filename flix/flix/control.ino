@@ -3,6 +3,7 @@
 
 // 飞行控制
 
+#include "features.h"
 #include "vector.h"
 #include "quaternion.h"
 #include "pid.h"
@@ -24,11 +25,13 @@ bool altHoldEngaged = false;    // 定高是否激活
 float altHoldTarget = 0;        // 目标高度 (m)
 float altHoldBaseThrottle = 0;  // 启用时的基准油门（修正量的基准）
 float altHoldIntegral = 0;      // PID 积分项
-float altHoldLastError = 0;     // 上次高度误差
+float altHoldPrevAlt = NAN;     // 上次气压采样高度（用于计算高度变化率）
+float altHoldPrevTime = 0;      // 上次气压采样时间
+float altHoldAltRate = 0;       // 高度变化率 d(alt)/dt (m/s)
 float altHoldP = 0.8, altHoldI = 0.05, altHoldD = 0.1; // 高度PID增益
 float altHoldIntegralLimit = 0.3;   // 积分限幅
 float altHoldMaxCorrection = 0.25;  // 油门修正限幅（最大 ±25% 油门）
-float altHoldExitThrottle = 0.2;    // 油门摇杆偏移超过此值自动退出定高
+float altHoldExitThrottle = 0.2;    // 油门摇杆相对中立位偏移超过此值自动退出定高
 
 PID rollRatePID(0.05, 0.2, 0.001, 0.3, 0.2);
 PID pitchRatePID(0.05, 0.2, 0.001, 0.3, 0.2);
@@ -60,9 +63,15 @@ void control() {
 }
 
 void interpretControls() {
+#if WEB_RC_ENABLED
+	if (!isUsingWebRC()) { // 网页遥控控制时，实体遥控的模式通道不再覆盖网页模式按钮
+#endif
 	if (controlMode < 0.25) mode = flightModes[0];
 	else if (controlMode <= 0.75) mode = flightModes[1];
 	else if (controlMode > 0.75) mode = flightModes[2];
+#if WEB_RC_ENABLED
+	}
+#endif
 
 	if (mode == AUTO) return; // 在自动模式下，飞手输入不生效
 
@@ -138,7 +147,9 @@ bool engageAltHold(bool force) {
 #endif
 	altHoldBaseThrottle = thrustTarget;
 	altHoldIntegral = 0;
-	altHoldLastError = 0;
+	altHoldPrevAlt = NAN;
+	altHoldPrevTime = 0;
+	altHoldAltRate = 0;
 	altHoldEngaged = true;
 	print("✅ 定高已启用，目标高度 %.2f m，基准油门 %.0f%%\n", altHoldTarget, altHoldBaseThrottle * 100);
 	return true;
@@ -148,7 +159,9 @@ void disengageAltHold(const char *reason) {
 	if (!altHoldEngaged) return;
 	altHoldEngaged = false;
 	altHoldIntegral = 0;
-	altHoldLastError = 0;
+	altHoldPrevAlt = NAN;
+	altHoldPrevTime = 0;
+	altHoldAltRate = 0;
 	if (reason) {
 		print("定高已退出：%s\n", reason);
 	} else {
@@ -168,18 +181,32 @@ void updateAltHold() {
 		disengageAltHold("气压计不可用");
 		return;
 	}
-	// 油门摇杆大幅移动时交还手动控制
-	if (abs(controlThrottle - altHoldBaseThrottle) > altHoldExitThrottle) {
+	// 油门摇杆相对中立位大幅偏移时交还手动控制（网页端松手回中，不会误触发）
+	if (abs(controlThrottle - 0.5f) > altHoldExitThrottle) {
 		disengageAltHold("油门摇杆大幅移动");
 		return;
 	}
 	if (!(dt > 0)) return;
 
-	float error = altHoldTarget - getAltitude();
+	float alt = getAltitude();
+	float error = altHoldTarget - alt;
+
+	// 积分（连续时间积分，误差在两次采样间视为恒定，累加正确）
 	altHoldIntegral = constrain(altHoldIntegral + error * dt, -altHoldIntegralLimit, altHoldIntegralLimit);
-	float derivative = (error - altHoldLastError) / dt;
-	altHoldLastError = error;
-	float correction = altHoldP * error + altHoldI * altHoldIntegral + altHoldD * derivative;
+
+	// 微分：仅在气压采样更新时按采样间隔计算高度变化率，
+	// 避免控制循环 dt(~1-4ms) 与气压采样周期(~50ms) 失配导致微分尖峰
+	if (!valid(altHoldPrevAlt) || alt != altHoldPrevAlt) {
+		if (valid(altHoldPrevAlt)) {
+			float dT = t - altHoldPrevTime;
+			if (dT > 0) altHoldAltRate = (alt - altHoldPrevAlt) / dT;
+		}
+		altHoldPrevAlt = alt;
+		altHoldPrevTime = t;
+	}
+
+	// D 项：d(error)/dt = -d(alt)/dt（目标高度不变）
+	float correction = altHoldP * error + altHoldI * altHoldIntegral - altHoldD * altHoldAltRate;
 	correction = constrain(correction, -altHoldMaxCorrection, altHoldMaxCorrection);
 	// 目标推力 = 基准推力 + 修正量（绝对值，不做累加，避免漂移）
 	thrustTarget = constrain(altHoldBaseThrottle + correction, 0.05f, 1.0f);
