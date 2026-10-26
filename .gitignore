@@ -1,4 +1,20 @@
 build/*
-docs/*
-.github/*
-.vscode/*
+
+*.hex
+*.elf
+build/
+tools/log/
+tools/dist/
+*.egg-info/
+.core
+.libs
+# .vscode/*
+CF-Drone/*
+!.vscode/settings.default.json
+!.vscode/c_cpp_properties.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/intellisense.h
+
+!huojianfeikong/**/*

@@ -1,0 +1,206 @@
+// Copyright (c) 2023 Oleg Kalachev <okalachev@gmail.com>
+// Repository: https://github.com/okalachev/flix
+
+// 用于模拟的ArduinoAPI的部分实现
+
+#pragma once
+
+#include <cmath>
+#include <string>
+#include <stdint.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <sys/poll.h>
+#include <chrono>
+#include <thread>
+
+#define PI 3.1415926535897932384626433832795
+#define DEG_TO_RAD 0.017453292519943295769236907684886
+#define RAD_TO_DEG 57.295779513082320876798154814105
+#define radians(deg) ((deg)*DEG_TO_RAD)
+#define degrees(rad) ((rad)*RAD_TO_DEG)
+
+#define constrain(amt,low,high) ((amt)<(low)?(low):((amt)>(high)?(high):(amt)))
+template<typename T> T max(T a, T b) { return a > b ? a : b; }
+template<typename T> T min(T a, T b) { return a < b ? a : b; }
+
+long map(long x, long in_min, long in_max, long out_min, long out_max) {
+	const long run = in_max - in_min;
+	const long rise = out_max - out_min;
+	const long delta = x - in_min;
+	return (delta * rise) / run + out_min;
+}
+
+size_t strlcpy(char* dst, const char* src, size_t len) {
+	size_t l = strlen(src);
+	size_t i = 0;
+	while (i < len - 1 && *src != '\0') { *dst++ = *src++; i++; }
+	*dst = '\0';
+	return l;
+}
+
+class __FlashStringHelper;
+
+// Arduino String 的部分实现
+// https://www.arduino.cc/reference/en/language/variables/data-types/stringobject/
+class String: public std::string {
+public:
+	String(const char *str = "") : std::string(str ? str : "") {}
+	long toInt() const { return atol(this->c_str()); }
+	float toFloat() const { return atof(this->c_str()); }
+	bool isEmpty() const { return this->empty(); }
+	void toCharArray(char *buf, unsigned int bufsize, unsigned int index = 0) const {
+		strlcpy(buf, this->c_str() + index, bufsize);
+	}
+	void trim() {
+		this->erase(0, this->find_first_not_of(" \t\n\r"));
+		this->erase(this->find_last_not_of(" \t\n\r") + 1);
+	}
+	void toLowerCase() {
+		std::transform(this->begin(), this->end(), this->begin(),
+			[](unsigned char c) { return std::tolower(c); });
+	}
+	void toUpperCase() {
+		std::transform(this->begin(), this->end(), this->begin(),
+			[](unsigned char c) { return std::toupper(c); });
+	}
+};
+
+class Print;
+
+class Printable {
+public:
+	virtual size_t printTo(Print& p) const = 0;
+};
+
+class Print {
+public:
+	size_t printf(const char *format, ...) {
+		va_list args;
+		va_start(args, format);
+		size_t result = vprintf(format, args);
+		va_end(args);
+		return result;
+	}
+
+	size_t print(int n) {
+		return printf("%d", n);
+	}
+
+	size_t print(float n, int digits = 2) {
+		return printf("%.*f", digits, n);
+	}
+
+	size_t println(float n, int digits = 2) {
+		return printf("%.*f\n", digits, n);
+	}
+
+	size_t print(const char* s) {
+		return printf("%s", s);
+	}
+
+	size_t println() {
+		return print("\n");
+	}
+
+	size_t println(const char* s) {
+		return printf("%s\n", s);
+	}
+
+	size_t println(const Printable& p) {
+		return p.printTo(*this) + print("\n");
+	}
+
+	size_t print(const String& s) {
+		return printf("%s", s.c_str());
+	}
+
+	size_t println(const std::string& s) {
+		return printf("%s\n", s.c_str());
+	}
+
+	size_t println(const String& s) {
+		return printf("%s\n", s.c_str());
+	}
+};
+
+class HardwareSerial: public Print {
+public:
+	void begin(unsigned long baud) {
+		// 服务器默认在后台运行，因此无法访问标准输入
+		// https://github.com/gazebosim/gazebo-classic/blob/d45feeb51f773e63960616880b0544770b8d1ad7/gazebo/gazebo_main.cc#L216
+		// 将前台进程组设置为当前进程组，以允许从标准输入读取
+		// https://stackoverflow.com/questions/58918188/why-is-stdin-not-propagated-to-child-process-of-different-process-group
+		signal(SIGTTOU, SIG_IGN);
+		tcsetpgrp(STDIN_FILENO, getpgrp());
+		signal(SIGTTOU, SIG_DFL);
+	};
+
+	int available() {
+		// 如需在Windows上实现，参见 https://stackoverflow.com/a/71992965/6850197
+		if (!isatty(STDIN_FILENO)) return 0;
+		struct pollfd pfd = { .fd = STDIN_FILENO, .events = POLLIN };
+		return poll(&pfd, 1, 0) > 0 && (pfd.revents & POLLIN);
+	}
+
+	int read() {
+		if (available()) {
+			char c;
+			size_t res = ::read(STDIN_FILENO, &c, 1); // 使用原始读取以避免C++缓冲
+			// https://stackoverflow.com/questions/45238997/does-getchar-function-has-its-own-buffer-to-store-remaining-input
+			return c;
+		}
+		return -1;
+	}
+
+	int read(uint8_t *buf, int len) {
+		if (available()) {
+			return ::read(STDIN_FILENO, buf, len);
+		}
+		return 0;
+	}
+
+	int write(const uint8_t *data, int len) {
+		return ::write(STDOUT_FILENO, data, len);
+	}
+
+	void setRxInvert(bool invert) {};
+};
+
+HardwareSerial Serial, Serial1, Serial2;
+
+class EspClass {
+public:
+	void restart() { Serial.println("Ignore reboot in simulation"); }
+} ESP;
+
+unsigned long __delayTime = 0;
+
+void delay(uint32_t ms) {
+	std::this_thread::sleep_for(std::chrono::milliseconds(ms));
+	__delayTime += ms * 1000;
+}
+
+bool ledcAttach(uint8_t pin, uint32_t freq, uint8_t resolution) { return true; }
+bool ledcWrite(uint8_t pin, uint32_t duty) { return true; }
+uint32_t ledcChangeFrequency(uint8_t pin, uint32_t freq, uint8_t resolution) { return freq; }
+int8_t digitalPinToAnalogChannel(uint8_t pin) { return -1; }
+uint32_t analogReadMilliVolts(uint8_t pin) { return 0; }
+
+// 数字引脚 API（模拟中为 no-op，用于遥控 LED 等外设）
+#define HIGH 0x1
+#define LOW  0x0
+#define OUTPUT 0x03
+#define INPUT 0x01
+#define INPUT_PULLUP 0x05
+void pinMode(uint8_t pin, uint8_t mode) {}
+void digitalWrite(uint8_t pin, uint8_t val) {}
+int digitalRead(uint8_t pin) { return 0; }
+
+unsigned long __micros;
+unsigned long __resetTime = 0;
+
+unsigned long micros() {
+	// 使用steady_clock以避免系统时钟变化带来的问题
+	return __micros + __resetTime + __delayTime; // 保持时间单调性
+}
