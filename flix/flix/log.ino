@@ -8,7 +8,10 @@
 #include "util.h"
 
 #define LOG_RATE 100
-#define LOG_DURATION 10
+// 日志为环形缓冲，占用静态 RAM：LOG_SIZE * logColumns * 4 字节。
+// 10 秒 @100Hz = 68KB 会撑爆 ESP32 的 DRAM（新增网页/气压计后），故缩减为 6 秒。
+// 如后续腾出更多 RAM，可再调大。
+#define LOG_DURATION 6
 #define LOG_SIZE LOG_DURATION * LOG_RATE
 
 Vector attitudeEuler;

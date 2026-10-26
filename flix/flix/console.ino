@@ -36,7 +36,7 @@ const char* motd =
 "|  |     |  `----.|  |  /  .  \\\n"
 "|__|     |_______||__| /__/ \\__\\\n\n"
 "(C) Oleg Kalachev , Gemr\n"
-"版本：debug-2.1.1-2026.10.24.1623\n"
+"版本：debug-2.1.1-2026.10.26.2243\n"
 "仓库：https://github.com/blgjsy/CF-Drone\n"
 "原始仓库：https://github.com/okalachev/flix\n\n"
 "命令:\n"
@@ -88,7 +88,7 @@ void setupConsole() {
 }
 
 void print(const char* format, ...) {
-	static char buf[6000]; // 静态缓冲，容纳参数列表等较长输出，且不占用控制循环栈
+	char buf[3000]; // 栈上缓冲，避免占用宝贵的静态 DRAM；单次输出（含 motd）均小于此长度
 	va_list args;
 	va_start(args, format);
 	vsnprintf(buf, sizeof(buf), format, args);
